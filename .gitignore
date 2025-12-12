@@ -1,0 +1,5 @@
+# Ignore ROS bag files
+*.bag
+
+# Or if you have a specific ROS_bags directory:
+ROS_bags/
