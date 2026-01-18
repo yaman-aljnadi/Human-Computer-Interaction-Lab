@@ -11,7 +11,7 @@ class SimpleZedViewer(Node):
         # use "ros2 topic list | grep image" to list topic names 
         self.topic_name = '/zed/zed_node/rgb/color/rect/image'
 
-        # 2. Create the subscriber
+        # Create the subscriber
         self.subscription = self.create_subscription(
             Image,
             self.topic_name,
@@ -26,13 +26,12 @@ class SimpleZedViewer(Node):
     def image_callback(self, msg):
         try:
             # Convert ROS message -> OpenCV Image
-            # "bgr8" is standard color format for OpenCV
             cv_image = self.cv_bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
 
-            # 4. Show the image
+            # Show the image
             cv2.imshow("ZED Camera Feed", cv_image)
             
-            # 5. Handle Keypress (Exit if 'q' is pressed)
+            
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 self.get_logger().info("Quitting viewer...")
                 rclpy.shutdown()
