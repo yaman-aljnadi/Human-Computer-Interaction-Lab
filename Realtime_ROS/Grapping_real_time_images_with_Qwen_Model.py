@@ -77,7 +77,7 @@ class ZedQwenNode(Node):
                             "type": "image", 
                             "image": pil_image, 
                         },
-                        {"type": "text", "text": "Can you tell me what you see?"},
+                        {"type": "text", "text": "Can you tell me what you see? And return everything in a list format"},
                     ],
                 }
             ]
