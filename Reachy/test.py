@@ -16,7 +16,7 @@ print(f"PyTorch Version: {torch.__version__}")
 print(f"CUDA Available: {torch.cuda.is_available()}")
 
 class ReachyQwenViewer:
-    def __init__(self, reachy_ip='reachy.local'): # Change IP if needed
+    def __init__(self, reachy_ip='192.168.50.241'): # Change IP if needed
         print("Connecting to Reachy...")
         self.reachy = ReachySDK(host=reachy_ip)
         
