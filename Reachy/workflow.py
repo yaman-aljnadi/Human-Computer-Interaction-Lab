@@ -2,9 +2,12 @@ import torch
 import cv2
 import time
 import os
-from gtts import gTTS
+import wave
 from PIL import Image as PILImage
-from pynput import keyboard # <-- NEW IMPORT
+from pynput import keyboard 
+
+# Piper Import
+from piper import PiperVoice
 
 # Qwen Imports
 from transformers import Qwen2_5_VLForConditionalGeneration, AutoProcessor
@@ -31,13 +34,23 @@ class ReachyAIVoiceBot:
             device_map="auto",
         )
         self.processor = AutoProcessor.from_pretrained("Qwen/Qwen2.5-VL-3B-Instruct")
-        print("AI Brain Ready.")
+        
+        # --- NEW: Load Piper Voice Model ---
+        # Update this to match your specific .onnx file name
+        self.model_path = "piper_audios/en_US-joe-medium.onnx" 
+        print(f"Loading Piper Voice Model: {self.model_path}...")
+        try:
+            self.voice = PiperVoice.load(self.model_path, use_cuda=torch.cuda.is_available())
+            print("Piper Voice loaded successfully!")
+        except Exception as e:
+            print(f"Failed to load Piper model: {e}")
+            raise e
 
-        # --- NEW: Setup state variables for the keyboard listener ---
+        print("AI Brain + Voice Ready.")
+
         self.running = True
         self.capture_requested = False
 
-    # --- NEW: Keyboard listener functions ---
     def on_press(self, key):
         try:
             if hasattr(key, 'char'):
@@ -51,27 +64,23 @@ class ReachyAIVoiceBot:
     def run(self):
         print("Live Stream Active. Press 'c' to ask Reachy what it sees. Press 'q' to quit.")
         
-        # --- NEW: Start the background keyboard listener ---
         listener = keyboard.Listener(on_press=self.on_press)
         listener.start()
 
         while self.running:
-            # 1. OBTAIN IMAGE FROM REACHY'S EYES
+            # OBTAIN IMAGE FROM REACHY'S EYES
             frame, _ = self.reachy.cameras.teleop.get_frame(CameraView.LEFT)
 
             if frame is not None:
                 cv2.imshow("Reachy's Vision", frame)
             
-            # We still need waitKey(1) just to keep the video window refreshing
             cv2.waitKey(1) 
 
-            # --- NEW: Check if 'c' was pressed globally ---
             if self.capture_requested:
                 print("\n[Processing image...]")
                 self.process_and_speak(frame)
-                self.capture_requested = False # Reset flag
+                self.capture_requested = False
 
-        # Cleanup after loop ends
         listener.stop()
 
     def process_and_speak(self, frame):
@@ -83,7 +92,7 @@ class ReachyAIVoiceBot:
             "role": "user",
             "content": [
                 {"type": "image", "image": pil_image},
-                {"type": "text", "text": "Use two sentences to tell me what you see in front of you as if you are a friendly robot. Also try to make it sound funny and throw some jokes in there."},
+                {"type": "text", "text": "Use two sentences to tell me what you see in front of you. Also try to make it sound funny and throw some jokes in there."},
             ],
         }]
 
@@ -92,19 +101,24 @@ class ReachyAIVoiceBot:
         
         inputs = self.processor(text=[text], images=image_inputs, videos=video_inputs, padding=True, return_tensors="pt").to(self.device)
 
-        generated_ids = self.model.generate(**inputs, max_new_tokens=60)
+        generated_ids = self.model.generate(**inputs, max_new_tokens=300)
         generated_ids_trimmed = [out_ids[len(in_ids):] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)]
         output_text = self.processor.batch_decode(generated_ids_trimmed, skip_special_tokens=True)[0]
 
         print(f"Reachy says: {output_text}")
 
         try:
-            audio_file = "reachy_speech.mp3"
-            tts = gTTS(text=output_text, lang='en', tld='co.uk')
-            tts.save(audio_file)
+            audio_file = "reachy_speech.wav"
+            
+            with wave.open(audio_file, "wb") as wav_file:
+                self.voice.synthesize_wav(output_text, wav_file)
+
+            # Upload to Reachy and play
             self.reachy.audio.upload_audio_file(audio_file)
             self.reachy.audio.play_audio_file(audio_file)
-            time.sleep(3) 
+            
+
+            time.sleep(6) 
             os.remove(audio_file)
         except Exception as e:
             print(f"Audio Error: {e}")
