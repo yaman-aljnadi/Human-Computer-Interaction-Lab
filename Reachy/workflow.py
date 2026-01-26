@@ -37,7 +37,7 @@ class ReachyAIVoiceBot:
         
         # --- NEW: Load Piper Voice Model ---
         # Update this to match your specific .onnx file name
-        self.model_path = "piper_audios/en_US-joe-medium.onnx" 
+        self.model_path = "piper_audios/fr_FR-mls-medium.onnx" 
         print(f"Loading Piper Voice Model: {self.model_path}...")
         try:
             self.voice = PiperVoice.load(self.model_path, use_cuda=torch.cuda.is_available())
