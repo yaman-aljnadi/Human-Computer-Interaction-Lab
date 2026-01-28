@@ -17,13 +17,11 @@ from piper import PiperVoice
 from transformers import Qwen2_5_VLForConditionalGeneration, AutoProcessor
 from qwen_vl_utils import process_vision_info
 
-# Reachy 2 Imports
 from reachy2_sdk import ReachySDK
 from reachy2_sdk.media.camera import CameraView
 
 class ReachyAIVoiceBot:
     def __init__(self, reachy_ip='192.168.50.241'):
-        print("Connecting to Reachy...")
         self.reachy = ReachySDK(host=reachy_ip)
         if not self.reachy.is_connected():
             raise ConnectionError("Could not connect to Reachy 2.")
@@ -44,7 +42,7 @@ class ReachyAIVoiceBot:
             print(f"Failed to load Piper model: {e}")
             raise e
 
-        print("Loading Whisper Model...")
+
         self.whisper_model = whisper.load_model("base.en") 
         
         self.recognizer = sr.Recognizer()
@@ -62,7 +60,7 @@ class ReachyAIVoiceBot:
         """
         Runs in a separate thread. Continuously listens to the mic.
         """
-        print("Listening thread started...")
+        print("Listening Started")
         
         with self.microphone as source:
             self.recognizer.adjust_for_ambient_noise(source)
@@ -108,7 +106,7 @@ class ReachyAIVoiceBot:
 
         if self.conversation_mode:
             print(f">>> Conversational Input: {text}")
-            self.pending_prompt = f"You are having a casual conversation. The user said: '{text}'. Reply naturally based on what you see in the image."
+            self.pending_prompt = f"Let's have a conversation together, I said '{text}'."
             self.is_processing = True
             return
 
@@ -145,6 +143,7 @@ class ReachyAIVoiceBot:
         """Moves Reachy's head to look forward, then speaks."""
         try:
             print("Moving head...")
+            self.reachy.head.turn_on()
             self.reachy.head.look_at(x=1.0, y=0.0, z=0.0, duration=1.0)
             
             self.speak_direct("I am looking forward now.")
@@ -234,7 +233,7 @@ class ReachyAIVoiceBot:
             self.reachy.audio.upload_audio_file(audio_file)
             self.reachy.audio.play_audio_file(audio_file)
             
-            # Wait for audio to finish
+            # Wait for audio to finish - temp fix
             time.sleep(10) 
             
             if os.path.exists(audio_file):
