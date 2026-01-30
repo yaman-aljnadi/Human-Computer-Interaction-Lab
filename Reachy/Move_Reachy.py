@@ -9,7 +9,7 @@ reachy = ReachySDK(host='192.168.50.241')
 reachy.head.turn_on()
 # reachy.r_arm.turn_on()
 
-reachy.head.look_at(x=0.5, y=-0, z=0, duration=1.0)
+reachy.head.look_at(x=0.5, y=-0.5, z=0.5, duration=1.0)
 
 # look_right = reachy.head.look_at(x=0.5, y=-0.5, z=0.1, duration=1.0)
 # look_down = reachy.head.look_at(x=0.5, y=0, z=-0.4, duration=1.0)
