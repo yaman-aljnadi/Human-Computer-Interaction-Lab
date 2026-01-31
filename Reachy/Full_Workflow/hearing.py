@@ -11,7 +11,7 @@ class Ears:
         self.microphone = sr.Microphone()
         print("Ears Ready.")
 
-    def listen(self, timeout=5, phrase_time_limit=10):
+    def listen(self, timeout=5, phrase_time_limit=15):
         """Captures audio from mic and saves to temp file."""
         with self.microphone as source:
             self.recognizer.adjust_for_ambient_noise(source)
