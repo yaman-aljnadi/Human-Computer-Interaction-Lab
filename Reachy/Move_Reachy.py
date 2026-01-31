@@ -7,9 +7,10 @@ import time
 reachy = ReachySDK(host='192.168.50.241')
 
 reachy.head.turn_on()
-# reachy.r_arm.turn_on()
+reachy.r_arm.turn_on()
+reachy.l_arm.turn_on()
 
-reachy.head.look_at(x=0.5, y=-0.5, z=0.5, duration=1.0)
+reachy.head.look_at(x=0.5, y=0, z=0, duration=1.0)
 
 # look_right = reachy.head.look_at(x=0.5, y=-0.5, z=0.1, duration=1.0)
 # look_down = reachy.head.look_at(x=0.5, y=0, z=-0.4, duration=1.0)
@@ -41,9 +42,9 @@ reachy.head.look_at(x=0.5, y=-0.5, z=0.5, duration=1.0)
 # time.sleep(10)
 reachy.r_arm.turn_off_smoothly()
 
-reachy.head.l_antenna.goto(0, duration=0.5)
-reachy.head.r_antenna.goto(0, duration=0.5)
+reachy.head.l_antenna.goto(0, duration=2)
+reachy.head.r_antenna.goto(0, duration=2)
 
-# reachy.goto_posture(wait=True)
+reachy.goto_posture('default')
 
 reachy.head.turn_off()
