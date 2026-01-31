@@ -5,12 +5,23 @@ from reachy2_sdk import ReachySDK
 from reachy2_sdk.media.camera import CameraView
 import config
 
+import contextlib  
+import wave
+
+from mutagen.mp3 import MP3 
+from mutagen.wave import WAVE
+
 class ReachyRobot:
     def __init__(self):
         print(f"Connecting to Reachy at {config.REACHY_IP}...")
         self.sdk = ReachySDK(host=config.REACHY_IP)
         if not self.sdk.is_connected():
             raise ConnectionError("Could not connect to Reachy 2.")
+            
+        try:
+            self.sdk.audio.set_volume(80) 
+        except:
+            pass
         print("Reachy Connected.")
 
     def turn_on(self):
@@ -46,13 +57,37 @@ class ReachyRobot:
         self.sdk.head.look_at(x=1.0, y=0.0, z=0.0, duration=1.0)
 
     def play_audio(self, file_path, wait=True):
-        """Uploads and plays audio on the robot."""
-        if os.path.exists(file_path):
+            """Uploads and plays audio. Calculates duration automatically."""
+            if not os.path.exists(file_path):
+                print(f"[Audio] Error: File not found: {file_path}")
+                return
+
+            # 1. Calculate Duration
+            duration = 5.0 # Default fallback
+            try:
+                if file_path.endswith('.mp3'):
+                    audio = MP3(file_path)
+                    duration = audio.info.length
+                # THIS BLOCK HANDLES THE WAV FILE
+                elif file_path.endswith('.wav'):
+                    with contextlib.closing(wave.open(file_path, 'r')) as f:
+                        frames = f.getnframes()
+                        rate = f.getframerate()
+                        duration = frames / float(rate)
+                        
+                print(f"[Audio] Detected duration: {duration:.2f} seconds")
+            except Exception as e:
+                print(f"[Audio] Could not read duration: {e}. Using default.")
+
+            # 2. Upload and Play
+            print(f"[Audio] Uploading {file_path}...")
             self.sdk.audio.upload_audio_file(file_path)
+            print("[Audio] Playing...")
             self.sdk.audio.play_audio_file(file_path)
-            
+                
+            # 3. Wait (Blocking)
             if wait:
-                time.sleep(3) 
+                time.sleep(duration)
 
     def disconnect(self):
         self.sdk.disconnect()

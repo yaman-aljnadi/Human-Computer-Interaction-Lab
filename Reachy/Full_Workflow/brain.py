@@ -35,9 +35,9 @@ class Brain:
             rgb_frame = cv2_frame[:, :, ::-1]
             pil_image = PILImage.fromarray(rgb_frame)
 
-            # Dynamic Prompting Logic
+            
             if specific_prompt:
-                # We guide the VLM to focus only on the visual answer
+                
                 prompt = f"Answer this question based on the image you see and try to find or see what the user is asking: {specific_prompt}"
             else:
                 prompt = "Describe everything you see in this image in detail."
@@ -61,7 +61,7 @@ class Brain:
                 return_tensors="pt"
             ).to(self.device)
 
-            # Reduced max_tokens because specific answers (e.g., "It is red") are short
+            
             generated_ids = self.vlm.generate(**inputs, max_new_tokens=100)
             generated_ids_trimmed = [out_ids[len(in_ids):] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)]
             

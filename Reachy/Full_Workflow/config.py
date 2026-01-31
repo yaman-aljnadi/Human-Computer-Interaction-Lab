@@ -14,3 +14,7 @@ PIPER_MODEL_PATH = "piper_audios/en_US-joe-medium.onnx"
 TEMP_INPUT_AUDIO = "temp_command.wav"
 TEMP_OUTPUT_AUDIO = "reachy_speech.wav"
 SYSTEM_AUDIO = "system_speech.wav"
+
+
+# Weird Stuff Delete Later (Maybe)
+SONG_FILE = "End_of_Line_trimmed.mp3"

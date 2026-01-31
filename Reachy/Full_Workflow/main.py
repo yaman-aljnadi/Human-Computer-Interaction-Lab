@@ -29,6 +29,7 @@ class ReachyController:
         
         # Modes
         self.conversation_mode = False
+        self.is_muted = False
         self.ptt_active = False # Flag for UI feedback
         self.last_ptt_time = 0  # Timestamp for logic synch
         
@@ -43,20 +44,27 @@ class ReachyController:
         self.display_loop()
 
     def listen_loop(self):
-            while self.running:
-                if self.is_processing:
-                    time.sleep(0.5)
-                    continue
+        while self.running:
+            # 1. Check if processing response (existing logic)
+            if self.is_processing:
+                time.sleep(0.5)
+                continue
+            
+            # --- NEW ADDITION: Check Mute State ---
+            # If muted, we sleep briefly and skip the listening step
+            if self.is_muted:
+                time.sleep(0.5)
+                continue
+            # --------------------------------------
 
-                # No arguments needed now. It will block here until you speak.
-                if self.ears.listen():
-                    text = self.ears.transcribe()
-                    if text:
-                        # Check if PTT was used (same logic as before)
-                        was_ptt_active = (time.time() - self.last_ptt_time) < 1.5
-                        
-                        print(f"User said: '{text}'")
-                        self.handle_command(text, ptt_override=was_ptt_active)
+            # No arguments needed now. It will block here until you speak.
+            if self.ears.listen():
+                text = self.ears.transcribe()
+                if text:
+                    # ... existing logic ...
+                    was_ptt_active = (time.time() - self.last_ptt_time) < 1.5
+                    print(f"User said: '{text}'")
+                    self.handle_command(text, ptt_override=was_ptt_active)
 
     def handle_command(self, text, ptt_override=False):
             """Decides what to do based on user text."""
@@ -74,6 +82,26 @@ class ReachyController:
                 # DIRECTLY call the new processing hub
                 # This runs in the listener thread, so it won't freeze your camera!
                 self.process_request(text) 
+                return
+
+
+            if "sing" in text.lower():
+                print(">>> Singing Mode Activated")
+                self.speak_and_wait("Okay, let me perform a song for you.")
+                
+                self.body.start_dancing_behavior()
+                
+                # Check if file exists before trying to play
+                if os.path.exists(config.SONG_FILE):
+                    print(f"Playing {config.SONG_FILE}...")
+                    self.robot.play_audio(config.SONG_FILE, wait=True)
+                else:
+                    print(f"ERROR: Could not find song file at {config.SONG_FILE}")
+                    # Dance for 5 seconds anyway to test movement
+                    time.sleep(5) 
+                
+                self.body.stop_dancing_behavior()
+                self.is_processing = False
                 return
 
             # 3. Specific Commands (Command Mode)
@@ -96,42 +124,50 @@ class ReachyController:
 
 
     def display_loop(self):
-            print("Live Stream Active. Press 'q' to quit. Hold 't' to talk.")
-            
-            while self.running:
-                frame = self.robot.get_frame()
+        print("Live Stream Active. Press 'q' to quit. Hold 't' to talk. Press 'm' to mute.")
+        
+        while self.running:
+            frame = self.robot.get_frame()
 
-                if frame is not None:
-                    # PTT Logic
-                    key = cv2.waitKey(1)
-                    if key == ord('q'):
-                        self.running = False
-                    elif key == ord('t'):
-                        self.ptt_active = True
-                        self.last_ptt_time = time.time()
-                    else:
-                        self.ptt_active = False
+            if frame is not None:
+                # Key handling
+                key = cv2.waitKey(1)
+                if key == ord('q'):
+                    self.running = False
+                elif key == ord('t'):
+                    self.ptt_active = True
+                    self.last_ptt_time = time.time()
+                
+                # --- NEW ADDITION: Mute Toggle ---
+                elif key == ord('m'):
+                    self.is_muted = not self.is_muted
+                    state = "MUTED" if self.is_muted else "UNMUTED"
+                    print(f"Microphone is now {state}")
+                # ---------------------------------
+                
+                else:
+                    self.ptt_active = False
 
-                    # UI Text
-                    if self.ptt_active:
-                        mode_text = "MODE: LISTENING (PTT)"
-                        color = (255, 0, 0)
-                    elif self.conversation_mode:
-                        mode_text = "MODE: CHAT"
-                        color = (0, 255, 0)
-                    else:
-                        mode_text = "MODE: COMMAND"
-                        color = (0, 0, 255)
+                # UI Text Logic (Priority order: Muted -> PTT -> Chat -> Command)
+                if self.is_muted:
+                    mode_text = "MIC MUTED (Press 'm')"
+                    color = (0, 0, 255) # Red
+                elif self.ptt_active:
+                    mode_text = "MODE: LISTENING (PTT)"
+                    color = (255, 0, 0) # Blue
+                elif self.conversation_mode:
+                    mode_text = "MODE: CHAT"
+                    color = (0, 255, 0) # Green
+                else:
+                    mode_text = "MODE: COMMAND"
+                    color = (0, 0, 255) # Red
 
-                    cv2.putText(frame, mode_text, (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
-                    
-                    # REMOVED: The check for self.pending_prompt is gone.
-                    # The processing now happens in the listener thread.
+                cv2.putText(frame, mode_text, (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
+                
+                cv2.imshow("Reachy's Vision", frame)
 
-                    cv2.imshow("Reachy's Vision", frame)
-
-            cv2.destroyAllWindows()
-            self.robot.disconnect()
+        cv2.destroyAllWindows()
+        self.robot.disconnect()
 
     def process_request(self, text):
             """
@@ -170,6 +206,38 @@ class ReachyController:
             
             # Reset state
             self.is_processing = False
+
+            if "sing" in text.lower():
+                print(">>> Singing Mode Activated")
+                self.speak_and_wait("Okay, let me perform a song for you.")
+                
+                # --- FIX STARTS HERE ---
+                # Add a buffer to ensure the Robot's audio device has released the previous TTS
+                print("Preparing audio stream...")
+                time.sleep(1.5) 
+                # -----------------------
+
+                # 1. FORCE STOP LISTENING to clear ALSA/Mic conflicts
+                self.is_processing = True 
+                
+                # 2. Start the dance thread
+                # self.body.start_dancing_behavior()
+                
+                # 3. Play the audio
+                if os.path.exists(config.SONG_FILE):
+                    print(f"Playing {config.SONG_FILE}...")
+                    # The .mp3 will likely play reliably compared to the .wav
+                    self.robot.play_audio(config.SONG_FILE, wait=True)
+                else:
+                    print(f"ERROR: Could not find song file at {config.SONG_FILE}")
+                    time.sleep(5) 
+                
+                # 4. Stop dancing
+                # self.body.stop_dancing_behavior()
+                
+                # 5. Reset processing flag so he listens again
+                self.is_processing = False
+                return
 
     def speak_and_wait(self, text):
             """Synthesizes speech, moves robot, and waits."""
