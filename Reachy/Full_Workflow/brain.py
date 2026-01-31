@@ -28,40 +28,45 @@ class Brain:
         
         print("Brain Ready.")
 
-    def see(self, cv2_frame):
-        """
-        VLM TASK: strictly describes the image. No personality.
-        """
-        rgb_frame = cv2_frame[:, :, ::-1]
-        pil_image = PILImage.fromarray(rgb_frame)
+    def see(self, cv2_frame, specific_prompt=None):
+            """
+            VLM TASK: Answers a specific visual question or describes the scene.
+            """
+            rgb_frame = cv2_frame[:, :, ::-1]
+            pil_image = PILImage.fromarray(rgb_frame)
 
-        # We ask the VLM a purely descriptive question
-        prompt = "Describe everything you see in this image in detail."
-        
-        messages = [{
-            "role": "user",
-            "content": [
-                {"type": "image", "image": pil_image},
-                {"type": "text", "text": prompt},
-            ],
-        }]
+            # Dynamic Prompting Logic
+            if specific_prompt:
+                # We guide the VLM to focus only on the visual answer
+                prompt = f"Answer this question based on the image you see and try to find or see what the user is asking: {specific_prompt}"
+            else:
+                prompt = "Describe everything you see in this image in detail."
+            
+            messages = [{
+                "role": "user",
+                "content": [
+                    {"type": "image", "image": pil_image},
+                    {"type": "text", "text": prompt},
+                ],
+            }]
 
-        text = self.vlm_processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-        image_inputs, video_inputs = process_vision_info(messages)
-        
-        inputs = self.vlm_processor(
-            text=[text], 
-            images=image_inputs, 
-            videos=video_inputs, 
-            padding=True, 
-            return_tensors="pt"
-        ).to(self.device)
+            text = self.vlm_processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+            image_inputs, video_inputs = process_vision_info(messages)
+            
+            inputs = self.vlm_processor(
+                text=[text], 
+                images=image_inputs, 
+                videos=video_inputs, 
+                padding=True, 
+                return_tensors="pt"
+            ).to(self.device)
 
-        generated_ids = self.vlm.generate(**inputs, max_new_tokens=100)
-        generated_ids_trimmed = [out_ids[len(in_ids):] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)]
-        
-        raw_description = self.vlm_processor.batch_decode(generated_ids_trimmed, skip_special_tokens=True)[0]
-        return raw_description
+            # Reduced max_tokens because specific answers (e.g., "It is red") are short
+            generated_ids = self.vlm.generate(**inputs, max_new_tokens=100)
+            generated_ids_trimmed = [out_ids[len(in_ids):] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)]
+            
+            raw_description = self.vlm_processor.batch_decode(generated_ids_trimmed, skip_special_tokens=True)[0]
+            return raw_description
 
     def think(self, user_text, visual_context=None):
         """
@@ -71,10 +76,10 @@ class Brain:
         system_prompt = "You are Reachy, a helpful robot assistant. "
         
         if visual_context:
-            system_prompt += f"You have just looked at the world. Your visual system reports: '{visual_context}'. "
-            system_prompt += "Answer the user's question based on this visual information."
+            system_prompt += f"A VLM is sending you a report of what it has seen and this is the report: '{visual_context}'. "
+            system_prompt += "Answer the user's question based on this visual information provided by the VLM. DON'T MENTION THE VLM IN YOUR RESPONSE."
         else:
-            system_prompt += "Chat naturally with the user."
+            system_prompt += "You are an LLM inside a humanoid robot chat naturally with the user."
 
         messages = [
             {"role": "system", "content": system_prompt},

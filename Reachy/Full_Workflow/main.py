@@ -7,6 +7,8 @@ import config
 import wave
 import contextlib
 
+
+from movement import BodyLanguage
 from hearing import Ears
 from speaking import Voice
 from brain import Brain
@@ -18,6 +20,9 @@ class ReachyController:
         self.ears = Ears()
         self.voice = Voice()
         self.brain = Brain() 
+
+        self.body = BodyLanguage(self.robot) # Pass the robot instance
+        self.robot.head.turn_on() # Ensure motors are stiff/ready
         
         self.running = True
         self.is_processing = False
@@ -38,21 +43,20 @@ class ReachyController:
         self.display_loop()
 
     def listen_loop(self):
-        while self.running:
-            if self.is_processing:
-                time.sleep(0.5)
-                continue
+            while self.running:
+                if self.is_processing:
+                    time.sleep(0.5)
+                    continue
 
-            # The mic is always "listening" for silence/speech patterns
-            if self.ears.listen():
-                # Check if PTT was held active recently (within last 1.5 seconds)
-                # This handles the case where you release the key right as you stop speaking
-                was_ptt_active = (time.time() - self.last_ptt_time) < 1.5
-                
-                text = self.ears.transcribe()
-                if text:
-                    print(f"User said: '{text}' (PTT: {was_ptt_active})")
-                    self.handle_command(text, ptt_override=was_ptt_active)
+                # No arguments needed now. It will block here until you speak.
+                if self.ears.listen():
+                    text = self.ears.transcribe()
+                    if text:
+                        # Check if PTT was used (same logic as before)
+                        was_ptt_active = (time.time() - self.last_ptt_time) < 1.5
+                        
+                        print(f"User said: '{text}'")
+                        self.handle_command(text, ptt_override=was_ptt_active)
 
     def handle_command(self, text, ptt_override=False):
             """Decides what to do based on user text."""
@@ -147,12 +151,13 @@ class ReachyController:
                 print("[Router] Visual Request Detected. Engaging Eyes...")
                 self.speak_system("Let me take a look.") 
                 
-                # Capture a fresh frame immediately
                 frame = self.robot.get_frame()
                 if frame is not None:
-                    # Ask the VLM to describe the scene blindly
-                    visual_context = self.brain.see(frame)
-                    print(f"[VLM Raw Output] {visual_context}")
+                    # CHANGE HERE: We pass the 'text' (user's prompt) into the see function
+                    print(f"[VLM Input] Focusing on: '{text}'")
+                    visual_context = self.brain.see(frame, specific_prompt=text)
+                    
+                    print(f"[VLM Output] {visual_context}")
             
             # 3. Path A & B Converge: The LLM thinks
             print(f"[Router] Sending to Mind. Visual Context: {visual_context is not None}")
@@ -167,15 +172,13 @@ class ReachyController:
             self.is_processing = False
 
     def speak_and_wait(self, text):
-            """Synthesizes speech, calculates exact duration, and waits."""
+            """Synthesizes speech, moves robot, and waits."""
             
-            # 1. Generate the audio file locally
+            # 1. Synthesize Audio
             success = self.voice.synthesize(text, config.TEMP_OUTPUT_AUDIO)
-            if not success:
-                print("Error synthesizing speech.")
-                return
+            if not success: return
 
-            # 2. Calculate the exact duration from the WAV file
+            # 2. Get Duration
             duration = 0
             if os.path.exists(config.TEMP_OUTPUT_AUDIO):
                 with contextlib.closing(wave.open(config.TEMP_OUTPUT_AUDIO, 'r')) as f:
@@ -185,13 +188,18 @@ class ReachyController:
 
             print(f"[Speaking] Duration: {duration:.2f}s")
 
-            # 3. Send to robot and play
-            # We set wait=False in play_audio because we handle the sleep here
+            # 3. START MOVEMENT (The robot starts looking alive)
+            self.body.start_speaking_behavior()
+
+            # 4. START AUDIO
             self.robot.play_audio(config.TEMP_OUTPUT_AUDIO, wait=False)
             
-            # 4. Wait for the audio to finish + small buffer (0.5s)
-            # This prevents the mic from turning on while the robot is still talking
+            # 5. WAIT
+            # We sleep while the background thread wiggles the antennas
             time.sleep(duration + 0.5)
+
+            # 6. STOP MOVEMENT (The robot goes back to rest)
+            self.body.stop_speaking_behavior()
 
             # Cleanup
             if os.path.exists(config.TEMP_OUTPUT_AUDIO):
