@@ -7,7 +7,7 @@ from speaking import Voice
 from reachy_interface import ReachyRobot
 
 def get_wav_duration(filename):
-    """Reads the WAV header to get the exact duration in seconds."""
+    # Reads the WAV header to get the exact duration in seconds
     if not os.path.exists(filename):
         return 0
     with contextlib.closing(wave.open(filename, 'r')) as f:
@@ -32,10 +32,10 @@ def run_calibration():
     for i, text in enumerate(samples):
         print(f"\nTest {i+1}: '{text[:30]}...'")
         
-        # 1. Generate the audio file
+        # Generate the audio file
         voice.synthesize(text, config.TEMP_OUTPUT_AUDIO)
         
-        # 2. Calculate EXACT duration directly from the file
+        # Calculate EXACT duration 
         duration = get_wav_duration(config.TEMP_OUTPUT_AUDIO)
         print(f" -> File Duration: {duration:.2f} seconds")
         

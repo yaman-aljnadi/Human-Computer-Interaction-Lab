@@ -8,7 +8,7 @@ class Brain:
     def __init__(self):
         self.device = config.DEVICE
         
-        # 1. Load the Eyes (VLM)
+        # (VLM) Part
         print("Loading Eyes (VLM)...")
         self.vlm = Qwen2_5_VLForConditionalGeneration.from_pretrained(
             config.QWEN_MODEL_ID,
@@ -17,7 +17,7 @@ class Brain:
         )
         self.vlm_processor = AutoProcessor.from_pretrained(config.QWEN_MODEL_ID)
 
-        # 2. Load the Mind (LLM)
+        # (LLM) part
         print("Loading Mind (LLM)...")
         self.llm = AutoModelForCausalLM.from_pretrained(
             config.LLM_MODEL_ID,
@@ -29,13 +29,10 @@ class Brain:
         print("Brain Ready.")
 
     def see(self, cv2_frame, specific_prompt=None):
-            """
-            VLM TASK: Answers a specific visual question or describes the scene.
-            """
+            # When asked about visuals 
             rgb_frame = cv2_frame[:, :, ::-1]
             pil_image = PILImage.fromarray(rgb_frame)
 
-            
             if specific_prompt:
                 
                 prompt = f"Answer this question based on the image you see and try to find or see what the user is asking: {specific_prompt}"
@@ -69,9 +66,7 @@ class Brain:
             return raw_description
 
     def think(self, user_text, visual_context=None):
-        """
-        LLM TASK: Takes user text + optional visual context and generates the final answer.
-        """
+        # Start the LLM response with/without visual context 
         
         system_prompt = "You are Reachy, a helpful robot assistant. "
         
