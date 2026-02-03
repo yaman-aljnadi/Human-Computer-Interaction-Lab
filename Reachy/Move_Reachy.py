@@ -7,10 +7,11 @@ import time
 reachy = ReachySDK(host='192.168.50.241')
 
 reachy.head.turn_on()
-# reachy.r_arm.turn_on()
+reachy.r_arm.turn_on()
+# reachy.l_arm.turn_on()
 reachy.l_arm.turn_on()
 
-reachy.head.look_at(x=0.5, y=-0, z=0, duration=1.0)
+# reachy.head.look_at(x=0.5, y=0, z=0, duration=1.0)
 
 # look_right = reachy.head.look_at(x=0.5, y=-0.5, z=0.1, duration=1.0)
 # look_down = reachy.head.look_at(x=0.5, y=0, z=-0.4, duration=1.0)
@@ -20,15 +21,15 @@ reachy.head.look_at(x=0.5, y=-0, z=0, duration=1.0)
 # reachy.head.l_antenna.goto(60, duration=0.5)
 # reachy.head.r_antenna.goto(60, duration=0.5)
 
-# A = np.array([[0, 0, -1, 0.4], [0, 1, 0, -0.5], [1, 0, 0, -0.2], [0, 0, 0, 1]])
-# B = np.array([[0, 0, -1, 0.4], [0, 1, 0, -0.5], [1, 0, 0, 0.0], [0, 0, 0, 1]])
-# C = np.array([[0, 0, -1, 0.4], [0, 1, 0, -0.3], [1, 0, 0, 0.0], [0, 0, 0, 1]])
-# D = np.array([[0, 0, -1, 0.4], [0, 1, 0, -0.3], [1, 0, 0, -0.2], [0, 0, 0, 1]])
+A = np.array([[0, 0, -1, 0.4], [0, 1, 0, -0.5], [1, 0, 0, -0.2], [0, 0, 0, 1]])
+B = np.array([[0, 0, -1, 0.4], [0, 1, 0, -0.5], [1, 0, 0, 0.0], [0, 0, 0, 1]])
+C = np.array([[0, 0, -1, 0.4], [0, 1, 0, -0.3], [1, 0, 0, 0.0], [0, 0, 0, 1]])
+D = np.array([[0, 0, -1, 0.4], [0, 1, 0, -0.3], [1, 0, 0, -0.2], [0, 0, 0, 1]])
 
-# reachy.r_arm.goto(A)
-# reachy.r_arm.goto(B)
-# reachy.r_arm.goto(C)
-# reachy.r_arm.goto(D)
+reachy.r_arm.goto(A)
+reachy.r_arm.goto(B)
+reachy.r_arm.goto(C)
+reachy.r_arm.goto(D)
 
 
 A_left = np.array([[0, 0, -1, 0.4], [0, 1,  0, 0.5], [1, 0,  0, -0.2], [0, 0,  0, 1]]) # Changed -0.5 to 0.5
@@ -41,7 +42,7 @@ reachy.l_arm.goto(B_left)
 reachy.l_arm.goto(C_left)
 reachy.l_arm.goto(D_left)
 
-#reachy.r_arm.inverse_kinematics(reachy.r_arm.forward_kinematics())
+reachy.r_arm.inverse_kinematics(reachy.r_arm.forward_kinematics())
 
 # while True:
 #     reachy.head.l_antenna.goto(80, duration=0.7, interpolation_mode='minimum_jerk', wait=True)
@@ -50,15 +51,12 @@ reachy.l_arm.goto(D_left)
 #     reachy.head.l_antenna.goto(0, duration=0.7, interpolation_mode='minimum_jerk', wait=True)
 #     reachy.head.r_antenna.goto(0, duration=0.7, interpolation_mode='minimum_jerk', wait=True)
 
-time.sleep(10)
+time.sleep(12)
+reachy.r_arm.turn_off_smoothly()
 
-reachy.head.l_antenna.goto(0, duration=0.5)
-reachy.head.r_antenna.goto(0, duration=0.5)
+reachy.head.l_antenna.goto(0, duration=5)
+reachy.head.r_antenna.goto(0, duration=5)
 
-reachy.goto_posture(wait=True)
-
-# reachy.r_arm.turn_off_smoothly()
-reachy.l_arm.turn_off_smoothly()
-
+reachy.goto_posture('default')
 
 reachy.head.turn_off()
