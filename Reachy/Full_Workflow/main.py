@@ -13,6 +13,7 @@ from hearing import Ears
 from speaking import Voice
 from brain import Brain
 from reachy_interface import ReachyRobot
+from tracker import HeadTracker
 
 class ReachyController:
     def __init__(self):
@@ -33,6 +34,9 @@ class ReachyController:
         self.ptt_active = False # Flag for UI feedback
         self.last_ptt_time = 0  # Timestamp for logic synch
         
+        self.tracker = HeadTracker(self.robot)
+        self.tracking_active = False 
+
         self.pending_prompt = None
 
     def start(self):
@@ -83,22 +87,7 @@ class ReachyController:
 
 
             if "sing" in text.lower():
-                print(">>> Singing Mode Activated")
-                self.speak_and_wait("Okay, let me perform a song for you clear the dance floor for me.")
-                
-                self.body.start_dancing_behavior()
-                
-                # Check if file exists before trying to play
-                if os.path.exists(config.SONG_FILE):
-                    print(f"Playing {config.SONG_FILE}...")
-                    self.robot.play_audio(config.SONG_FILE, wait=True)
-                else:
-                    print(f"ERROR: Could not find song file at {config.SONG_FILE}")
-                    # Dance for 5 seconds anyway to test movement
-                    time.sleep(5) 
-                
-                self.body.stop_dancing_behavior()
-                self.is_processing = False
+                self.perform_song()
                 return
 
             # Specific Commands (Command Mode)
@@ -121,31 +110,56 @@ class ReachyController:
 
 
     def display_loop(self):
-        print("Live Stream Active. Press 'q' to quit. Hold 't' to talk. Press 'm' to mute.")
+        print("Live Stream Active.") 
+        print("Controls: 'q': Quit | 't': Talk | 'm': Mute | 'c': Toggle Chat Mode | 's': Sing | 'f': Follow Face")
         
         while self.running:
             frame = self.robot.get_frame()
 
             if frame is not None:
                 # Key handling
+                if self.tracking_active:
+                    # This modifies the frame (draws box) AND moves the robot
+                    self.tracker.track_face(frame)
+                    cv2.putText(frame, "MODE: FACE TRACKING", (50, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 0), 2)
+
                 key = cv2.waitKey(1)
+                
                 if key == ord('q'):
                     self.running = False
+
+                elif key == ord('f'):
+                    self.tracking_active = not self.tracking_active
+                    state = "ON" if self.tracking_active else "OFF"
+                    print(f">>> Face Tracking {state}")
+                    if self.tracking_active:
+                        self.speak_system("I am watching you.")
+                        self.robot.look_forward() 
+
                 elif key == ord('t'):
                     self.ptt_active = True
                     self.last_ptt_time = time.time()
                 
-                # Mute Toggle 
                 elif key == ord('m'):
                     self.is_muted = not self.is_muted
                     state = "MUTED" if self.is_muted else "UNMUTED"
                     print(f"Microphone is now {state}")
+
+                # --- NEW BUTTONS ADDED HERE ---
                 
-                
+                elif key == ord('c'):
+                    # We use threading so the 'Speak System' API call doesn't freeze the video
+                    threading.Thread(target=self.toggle_mode).start()
+
+                elif key == ord('s'):
+                    # Singing MUST be threaded or the camera window will freeze for the whole song
+                    threading.Thread(target=self.perform_song).start()
+
                 else:
                     self.ptt_active = False
 
-                # Priority order: Muted -> PTT -> Chat -> Command.  (for the UI)
+                # --- UI TEXT UPDATES ---
+                # Priority order: Muted -> PTT -> Chat -> Command
                 if self.is_muted:
                     mode_text = "MIC MUTED (Press 'm')"
                     color = (0, 0, 255) # Red
@@ -153,14 +167,13 @@ class ReachyController:
                     mode_text = "MODE: LISTENING (PTT)"
                     color = (255, 0, 0) # Blue
                 elif self.conversation_mode:
-                    mode_text = "MODE: CHAT"
+                    mode_text = "MODE: CHAT (Press 'c')" # Updated Text
                     color = (0, 255, 0) # Green
                 else:
-                    mode_text = "MODE: COMMAND"
+                    mode_text = "MODE: COMMAND (Press 'c')" # Updated Text
                     color = (0, 0, 255) # Red
 
                 cv2.putText(frame, mode_text, (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
-                
                 cv2.imshow("Reachy's Vision", frame)
 
         cv2.destroyAllWindows()
@@ -238,19 +251,9 @@ class ReachyController:
         if os.path.exists(config.TEMP_OUTPUT_AUDIO):
             import contextlib
             import wave
-            # Note: OpenAI might output MP3. If wave.open fails, we might need 
-            # to just trust a rough calculation or use pydub/mutagen to get length.
-            # But the previous ReachyRobot.play_audio handles MP3 duration check!
-            # So we rely on that for the actual play, but here we need duration for the sleep.
-            
-            # Quick fix: If it's MP3, we might need a library, OR just estimate:
-            # English avg: 15 chars per second (rough estimate)
+
             duration = len(text) / 15.0 
             
-            # If you want exact duration for MP3, you need 'mutagen' or 'pydub'
-            # But let's try to see if we can read it or just use the estimation to keep it simple
-            # since we don't want to install too many new libs.
-            # Actually, your reachy_interface.py already imports Mutagen! Let's use it.
             try:
                 from mutagen.mp3 import MP3
                 audio = MP3(config.TEMP_OUTPUT_AUDIO)
@@ -269,6 +272,43 @@ class ReachyController:
         
         if os.path.exists(config.TEMP_OUTPUT_AUDIO):
             os.remove(config.TEMP_OUTPUT_AUDIO)
+
+    def toggle_mode(self):
+            """Switches between Command and Chat mode safely."""
+            self.conversation_mode = not self.conversation_mode
+            
+            if self.conversation_mode:
+                print(">>> Switched to CHAT MODE via Button")
+                self.speak_system("I am now in conversational mode.")
+            else:
+                print(">>> Switched to COMMAND MODE via Button")
+                self.speak_system("I am back to command mode.")
+
+    def perform_song(self):
+            """The singing logic, separated so it can be called by Voice OR Button."""
+            if self.is_processing: return # Prevent double triggering
+            self.is_processing = True
+            
+            print(">>> Singing Mode Activated (Button/Voice)")
+            self.speak_and_wait("Okay, let me perform a song for you.")
+            
+            # Buffer for audio device switch
+            time.sleep(1.0) 
+            
+            # Start dancing
+            self.body.start_dancing_behavior()
+            
+            # Play Song
+            if os.path.exists(config.SONG_FILE):
+                print(f"Playing {config.SONG_FILE}...")
+                self.robot.play_audio(config.SONG_FILE, wait=True)
+            else:
+                print(f"ERROR: Song file not found at {config.SONG_FILE}")
+                time.sleep(5) 
+            
+            self.body.stop_dancing_behavior()
+            self.is_processing = False
+            print(">>> Singing Complete")
 
 if __name__ == '__main__':
     controller = ReachyController()

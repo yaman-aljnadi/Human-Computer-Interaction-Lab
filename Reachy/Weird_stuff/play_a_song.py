@@ -2,7 +2,7 @@ from reachy2_sdk import ReachySDK
 import time
 
 REACHY_IP = '192.168.50.241'
-AUDIO_FILE = 'End_of_Line.mp3' 
+AUDIO_FILE = 'Camille.mp3' 
 
 def play_sound():
     print(f"Connecting to Reachy at {REACHY_IP}...")

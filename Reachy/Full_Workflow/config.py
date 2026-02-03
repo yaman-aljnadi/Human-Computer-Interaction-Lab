@@ -3,6 +3,7 @@ import torch
 import os
 from dotenv import load_dotenv
 
+load_dotenv()
 # Connection
 REACHY_IP = '192.168.50.241'
 

@@ -89,5 +89,19 @@ class ReachyRobot:
             if wait:
                 time.sleep(duration)
 
+    def look_at_smooth(self, x, y, z):
+        """
+        Fast update for head tracking. 
+        Clears previous commands to prevent 'memory' lag.
+        """
+        try:
+            # IMPORTANT: Clear the queue so he doesn't "remember" old movements
+            self.sdk.head.cancel_all_goto()
+            
+            # Duration must be slightly larger than your loop speed (latency)
+            self.sdk.head.look_at(x=x, y=y, z=z, duration=0.2, wait=False)
+        except Exception as e:
+            print(f"Head Error: {e}")
+            
     def disconnect(self):
         self.sdk.disconnect()
