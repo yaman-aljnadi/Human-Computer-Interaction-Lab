@@ -30,6 +30,17 @@ reachy.r_arm.turn_on()
 # reachy.r_arm.goto(C)
 # reachy.r_arm.goto(D)
 
+
+A_left = np.array([[0, 0, -1, 0.4], [0, 1,  0, 0.5], [1, 0,  0, -0.2], [0, 0,  0, 1]]) # Changed -0.5 to 0.5
+B_left = np.array([[0, 0, -1, 0.4], [0, 1,  0, 0.5],  [1, 0,  0, 0.0], [0, 0,  0, 1]]) # Changed -0.5 to 0.5
+C_left = np.array([[0, 0, -1, 0.4], [0, 1,  0, 0.3],  [1, 0,  0, 0.0], [0, 0,  0, 1]]) # Changed -0.3 to 0.3
+D_left = np.array([[0, 0, -1, 0.4], [0, 1,  0, 0.3],  [1, 0,  0, -0.2], [0, 0,  0, 1]]) # Changed -0.3 to 0.3
+
+reachy.l_arm.goto(A_left)
+reachy.l_arm.goto(B_left)
+reachy.l_arm.goto(C_left)
+reachy.l_arm.goto(D_left)
+
 # reachy.r_arm.inverse_kinematics(reachy.r_arm.forward_kinematics())
 
 while True:
