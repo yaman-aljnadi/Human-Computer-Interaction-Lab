@@ -3,3 +3,5 @@
 
 # Or if you have a specific ROS_bags directory:
 ROS_bags/
+
+.env
