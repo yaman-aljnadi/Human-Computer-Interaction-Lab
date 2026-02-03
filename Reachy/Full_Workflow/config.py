@@ -13,11 +13,7 @@ LLM_MODEL_ID = "Qwen/Qwen1.5-1.8B-Chat"
 WHISPER_MODEL_TYPE = "base.en"
 
 # --- OPENAI TTS SETTINGS ---
-<<<<<<< HEAD
 OPENAI_API_KEY = os.getenv("OPENAI") # <--- PASTE YOUR KEY HERE
-=======
-OPENAI_API_KEY = "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" # <--- PASTE YOUR KEY HERE
->>>>>>> parent of 8dbc196 (Updates)
 TTS_MODEL = "tts-1"       
 
 # Map emotions to specific OpenAI Voices
