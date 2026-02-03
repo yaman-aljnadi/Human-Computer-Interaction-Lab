@@ -15,7 +15,7 @@ class Ears:
         # Default is 0.8. Increasing this lets you pause to think without being cut off.
         self.recognizer.pause_threshold = 1.5 
         
-        # Optional: dynamic energy adjustment helps if your room is noisy
+        # Optional: dynamic energy adjustment helps if the room is noisy !doesn't really help but it's somethign (: 
         self.recognizer.dynamic_energy_threshold = True 
         
         print("Ears Ready.")
@@ -27,13 +27,12 @@ class Ears:
         Stops listening only when user stops speaking.
         """
         with self.microphone as source:
-            # We adjust for ambient noise once at the start is usually enough,
+            # Adjust for ambient noise once at the start is usually enough,
             # but doing it every time is safer if environment changes.
             self.recognizer.adjust_for_ambient_noise(source, duration=0.5)
             print("Listening... (Waiting for speech)")
             
             try:
-                # KEY ADJUSTMENT 2 & 3: No Timeouts
                 # timeout=None: Wait forever for sound to start.
                 # phrase_time_limit=None: Listen until silence (no hard time limit).
                 audio = self.recognizer.listen(source, timeout=None, phrase_time_limit=None)

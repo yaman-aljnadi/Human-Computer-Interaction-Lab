@@ -2,18 +2,18 @@ import time
 import threading
 import random
 import numpy as np
-# We need this to calculate the Cartesian targets as per the documentation
+
 from reachy2_sdk.utils.utils import get_pose_matrix 
 
 class BodyLanguage:
     def __init__(self, robot):
         self.robot = robot
         self.is_active = False
-        self.is_dancing = False # New flag for dancing
+        self.is_dancing = False 
         self._thread = None
         self._dance_thread = None
 
-    # --- SPEAKING BEHAVIOR (Existing) ---
+    # SPEAKING BEHAVIOR
     def start_speaking_behavior(self):
         if self.is_active: return 
         self.is_active = True
@@ -25,13 +25,13 @@ class BodyLanguage:
         if self._thread: self._thread.join()
         self.neutral_stance_head()
 
-    # --- DANCING BEHAVIOR (New) ---
+    # DANCING BEHAVIOR 
     def start_dancing_behavior(self):
         """Starts the robot dance thread."""
         if self.is_dancing: return
         
         print("[Body] Starting The Robot dance...")
-        # 1. Turn on arms stiff
+        # Turn on arms stiff
         self.robot.r_arm.turn_on()
         self.robot.l_arm.turn_on()
         
@@ -62,6 +62,7 @@ class BodyLanguage:
             The Robot Dance Routine using JOINT COORDINATES.
             Format: [shoulder_pitch, shoulder_roll, elbow_yaw, elbow_pitch, wrist_roll, wrist_pitch, wrist_yaw]
             """
+            # This is so confusing and I hate it 
             # 1. "The Box" (Elbows bent 90 degrees)
             # Right arm: elbow bent -90
             right_box = [0, 0, 0, -90, 0, 0, 0] 
@@ -90,7 +91,7 @@ class BodyLanguage:
                     if not self.is_dancing: break
                     
                     # Execute move using lists of angles
-                    # We use duration=0.6 for a snappier "robot" feel
+                    # !!! NEVER USE A DURATION LESS THAN 1 SEC OTHER WISE THE ARMS CRASH WILL CRASH OR PUNCH YOU IN THE FACE !!!
                     self.robot.r_arm.goto(r_pos, duration=3, wait=False)
                     self.robot.l_arm.goto(l_pos, duration=3, wait=False)
                     
@@ -99,7 +100,7 @@ class BodyLanguage:
                     
                     time.sleep(1) # Wait for the beat
 
-    # --- Existing Speaking Loop (Unchanged) ---
+    # Speaking Loop
     def _behavior_loop(self):
         while self.is_active:
             l_pos = random.randint(30, 80)

@@ -43,12 +43,12 @@ reachy.l_arm.goto(D_left)
 
 # reachy.r_arm.inverse_kinematics(reachy.r_arm.forward_kinematics())
 
-while True:
-    reachy.head.l_antenna.goto(80, duration=0.7, interpolation_mode='minimum_jerk', wait=True)
-    reachy.head.r_antenna.goto(80, duration=0.7, interpolation_mode='minimum_jerk', wait=True)
+# while True:
+#     reachy.head.l_antenna.goto(80, duration=0.7, interpolation_mode='minimum_jerk', wait=True)
+#     reachy.head.r_antenna.goto(80, duration=0.7, interpolation_mode='minimum_jerk', wait=True)
 
-    reachy.head.l_antenna.goto(0, duration=0.7, interpolation_mode='minimum_jerk', wait=True)
-    reachy.head.r_antenna.goto(0, duration=0.7, interpolation_mode='minimum_jerk', wait=True)
+#     reachy.head.l_antenna.goto(0, duration=0.7, interpolation_mode='minimum_jerk', wait=True)
+#     reachy.head.r_antenna.goto(0, duration=0.7, interpolation_mode='minimum_jerk', wait=True)
 
 time.sleep(12)
 # reachy.r_arm.turn_off_smoothly()

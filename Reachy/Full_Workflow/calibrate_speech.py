@@ -7,7 +7,7 @@ from speaking import Voice
 from reachy_interface import ReachyRobot
 
 def get_wav_duration(filename):
-    # Reads the WAV header to get the exact duration in seconds
+    # obtain the wav file duration 
     if not os.path.exists(filename):
         return 0
     with contextlib.closing(wave.open(filename, 'r')) as f:
@@ -30,20 +30,20 @@ def run_calibration():
     print("\n--- Starting Audio Calibration ---")
     
     for i, text in enumerate(samples):
-        print(f"\nTest {i+1}: '{text[:30]}...'")
+        print(f"\n Test {i+1}: '{text[:30]}...'")
         
-        # Generate the audio file
+        # Generating Audio files in order to do testing and finding out how long 
         voice.synthesize(text, config.TEMP_OUTPUT_AUDIO)
         
         # Calculate EXACT duration 
         duration = get_wav_duration(config.TEMP_OUTPUT_AUDIO)
         print(f" -> File Duration: {duration:.2f} seconds")
         
-        # 3. Play it on Reachy
+        # Play it on Reachy
         # We pass wait=False because we want to control the sleep ourselves
         robot.play_audio(config.TEMP_OUTPUT_AUDIO, wait=False)
         
-        # 4. Sleep for the exact duration + small buffer (0.5s) for network latency
+        # Sleep for the exact duration + small buffer (0.5s) for network latency
         print(f" -> Sleeping for {duration + 0.5:.2f}s...")
         time.sleep(duration + 0.5)
         print(" -> Done.")

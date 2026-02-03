@@ -45,23 +45,20 @@ class ReachyController:
 
     def listen_loop(self):
         while self.running:
-            # 1. Check if processing response (existing logic)
+            # Check if processing response (existing logic)
             if self.is_processing:
                 time.sleep(0.5)
                 continue
             
-            # --- NEW ADDITION: Check Mute State ---
             # If muted, we sleep briefly and skip the listening step
             if self.is_muted:
                 time.sleep(0.5)
                 continue
-            # --------------------------------------
 
-            # No arguments needed now. It will block here until you speak.
+            # It will block here until you speak.
             if self.ears.listen():
                 text = self.ears.transcribe()
                 if text:
-                    # ... existing logic ...
                     was_ptt_active = (time.time() - self.last_ptt_time) < 1.5
                     print(f"User said: '{text}'")
                     self.handle_command(text, ptt_override=was_ptt_active)
@@ -69,14 +66,14 @@ class ReachyController:
     def handle_command(self, text, ptt_override=False):
             """Decides what to do based on user text."""
             
-            # 1. Stop Commands
+            # Stop Commands
             if "stop chatting" in text or "stop conversation" in text:
                 print(">>> Switching to COMMAND MODE")
                 self.conversation_mode = False
                 self.speak_system("Okay, I am back to command mode.")
                 return
 
-            # 2. Conversation Mode (Now Routes to process_request)
+            # Conversation Mode (Now Routes to process_request)
             if self.conversation_mode or ptt_override:
                 self.is_processing = True
                 # DIRECTLY call the new processing hub
@@ -87,7 +84,7 @@ class ReachyController:
 
             if "sing" in text.lower():
                 print(">>> Singing Mode Activated")
-                self.speak_and_wait("Okay, let me perform a song for you.")
+                self.speak_and_wait("Okay, let me perform a song for you clear the dance floor for me.")
                 
                 self.body.start_dancing_behavior()
                 
@@ -104,7 +101,7 @@ class ReachyController:
                 self.is_processing = False
                 return
 
-            # 3. Specific Commands (Command Mode)
+            # Specific Commands (Command Mode)
             if "let's chat" in text:
                 self.conversation_mode = True
                 self.speak_system("I am ready to chat!")
@@ -138,17 +135,17 @@ class ReachyController:
                     self.ptt_active = True
                     self.last_ptt_time = time.time()
                 
-                # --- NEW ADDITION: Mute Toggle ---
+                # Mute Toggle 
                 elif key == ord('m'):
                     self.is_muted = not self.is_muted
                     state = "MUTED" if self.is_muted else "UNMUTED"
                     print(f"Microphone is now {state}")
-                # ---------------------------------
+                
                 
                 else:
                     self.ptt_active = False
 
-                # UI Text Logic (Priority order: Muted -> PTT -> Chat -> Command)
+                # Priority order: Muted -> PTT -> Chat -> Command.  (for the UI)
                 if self.is_muted:
                     mode_text = "MIC MUTED (Press 'm')"
                     color = (0, 0, 255) # Red
@@ -176,13 +173,13 @@ class ReachyController:
             """
             print(f"\n[Processing Request] User: {text}")
             
-            # 1. The Router: Check if visual info is needed
+            # The Router: Check if visual info is needed
             visual_keywords = ["see", "look", "what is this", "find", "describe", "where is"]
             needs_vision = any(keyword in text.lower() for keyword in visual_keywords)
             
             visual_context = None
             
-            # 2. Path B: Vision is needed
+            # If Vision is needed
             if needs_vision:
                 print("[Router] Visual Request Detected. Engaging Eyes...")
                 self.speak_system("Let me take a look.") 
@@ -195,10 +192,10 @@ class ReachyController:
                     
                     print(f"[VLM Output] {visual_context}")
             
-            # 3. Path A & B Converge: The LLM thinks
+            # A & B Converge: The LLM thinks 
             print(f"[Router] Sending to Mind. Visual Context: {visual_context is not None}")
             
-            # This calls the new brain.think which handles the merging
+            # This calls the brain.think handles the merging
             response = self.brain.think(user_text=text, visual_context=visual_context)
             
             print(f"Reachy says: {response}")
@@ -211,19 +208,17 @@ class ReachyController:
                 print(">>> Singing Mode Activated")
                 self.speak_and_wait("Okay, let me perform a song for you.")
                 
-                # --- FIX STARTS HERE ---
                 # Add a buffer to ensure the Robot's audio device has released the previous TTS
                 print("Preparing audio stream...")
                 time.sleep(1.5) 
-                # -----------------------
 
-                # 1. FORCE STOP LISTENING to clear ALSA/Mic conflicts
+                # FORCE STOP LISTENING to clear ALSA/Mic conflicts
                 self.is_processing = True 
                 
-                # 2. Start the dance thread
-                # self.body.start_dancing_behavior()
+                # Start the dance thread
+                self.body.start_dancing_behavior()
                 
-                # 3. Play the audio
+                # Play the audio
                 if os.path.exists(config.SONG_FILE):
                     print(f"Playing {config.SONG_FILE}...")
                     # The .mp3 will likely play reliably compared to the .wav
@@ -231,22 +226,19 @@ class ReachyController:
                 else:
                     print(f"ERROR: Could not find song file at {config.SONG_FILE}")
                     time.sleep(5) 
-                
-                # 4. Stop dancing
-                # self.body.stop_dancing_behavior()
-                
-                # 5. Reset processing flag so he listens again
+                            
+                # Reset processing flag so he listens again
                 self.is_processing = False
                 return
 
     def speak_and_wait(self, text):
             """Synthesizes speech, moves robot, and waits."""
             
-            # 1. Synthesize Audio
+            # Synthesize Audio
             success = self.voice.synthesize(text, config.TEMP_OUTPUT_AUDIO)
             if not success: return
 
-            # 2. Get Duration
+            # Get Duration
             duration = 0
             if os.path.exists(config.TEMP_OUTPUT_AUDIO):
                 with contextlib.closing(wave.open(config.TEMP_OUTPUT_AUDIO, 'r')) as f:
@@ -256,17 +248,17 @@ class ReachyController:
 
             print(f"[Speaking] Duration: {duration:.2f}s")
 
-            # 3. START MOVEMENT (The robot starts looking alive)
+            # START MOVEMENT (The robot starts looking alive)
             self.body.start_speaking_behavior()
 
-            # 4. START AUDIO
+            # START AUDIO
             self.robot.play_audio(config.TEMP_OUTPUT_AUDIO, wait=False)
             
-            # 5. WAIT
+            # WAIT
             # We sleep while the background thread wiggles the antennas
             time.sleep(duration + 0.5)
 
-            # 6. STOP MOVEMENT (The robot goes back to rest)
+            # STOP MOVEMENT (The robot goes back to rest)
             self.body.stop_speaking_behavior()
 
             # Cleanup

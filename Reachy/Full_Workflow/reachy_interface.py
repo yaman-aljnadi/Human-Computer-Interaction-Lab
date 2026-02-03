@@ -32,7 +32,7 @@ class ReachyRobot:
         """Passes the turn_off_smoothly command to the SDK."""
         self.sdk.turn_off_smoothly()
 
-    # --- Accessors for Body Parts (Needed for movement.py) ---
+    # Accessors for Body Parts (Needed for movement.py) 
     @property
     def head(self):
         return self.sdk.head
@@ -45,7 +45,7 @@ class ReachyRobot:
     def l_arm(self):
         return self.sdk.l_arm
 
-    # --- Existing Helper Methods ---
+    # Existing Helper Methods 
     def get_frame(self):
         """Returns the left eye frame."""
         frame, _ = self.sdk.cameras.teleop.get_frame(CameraView.LEFT)
@@ -62,7 +62,7 @@ class ReachyRobot:
                 print(f"[Audio] Error: File not found: {file_path}")
                 return
 
-            # 1. Calculate Duration
+            # Calculate Duration
             duration = 5.0 # Default fallback
             try:
                 if file_path.endswith('.mp3'):
@@ -79,13 +79,13 @@ class ReachyRobot:
             except Exception as e:
                 print(f"[Audio] Could not read duration: {e}. Using default.")
 
-            # 2. Upload and Play
+            # Upload and Play
             print(f"[Audio] Uploading {file_path}...")
             self.sdk.audio.upload_audio_file(file_path)
             print("[Audio] Playing...")
             self.sdk.audio.play_audio_file(file_path)
                 
-            # 3. Wait (Blocking)
+            # Wait (Blocking)
             if wait:
                 time.sleep(duration)
 
