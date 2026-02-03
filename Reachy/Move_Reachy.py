@@ -20,31 +20,31 @@ reachy.r_arm.turn_on()
 # reachy.head.l_antenna.goto(60, duration=0.5)
 # reachy.head.r_antenna.goto(60, duration=0.5)
 
-A = np.array([[0, 0, -1, 0.4], [0, 1, 0, -0.5], [1, 0, 0, -0.2], [0, 0, 0, 1]])
-B = np.array([[0, 0, -1, 0.4], [0, 1, 0, -0.5], [1, 0, 0, 0.0], [0, 0, 0, 1]])
-C = np.array([[0, 0, -1, 0.4], [0, 1, 0, -0.3], [1, 0, 0, 0.0], [0, 0, 0, 1]])
-D = np.array([[0, 0, -1, 0.4], [0, 1, 0, -0.3], [1, 0, 0, -0.2], [0, 0, 0, 1]])
+# A = np.array([[0, 0, -1, 0.4], [0, 1, 0, -0.5], [1, 0, 0, -0.2], [0, 0, 0, 1]])
+# B = np.array([[0, 0, -1, 0.4], [0, 1, 0, -0.5], [1, 0, 0, 0.0], [0, 0, 0, 1]])
+# C = np.array([[0, 0, -1, 0.4], [0, 1, 0, -0.3], [1, 0, 0, 0.0], [0, 0, 0, 1]])
+# D = np.array([[0, 0, -1, 0.4], [0, 1, 0, -0.3], [1, 0, 0, -0.2], [0, 0, 0, 1]])
 
-reachy.r_arm.goto(A)
-reachy.r_arm.goto(B)
-reachy.r_arm.goto(C)
-reachy.r_arm.goto(D)
+# reachy.r_arm.goto(A)
+# reachy.r_arm.goto(B)
+# reachy.r_arm.goto(C)
+# reachy.r_arm.goto(D)
 
-reachy.r_arm.inverse_kinematics(reachy.r_arm.forward_kinematics())
+# reachy.r_arm.inverse_kinematics(reachy.r_arm.forward_kinematics())
 
-# while True:
-#     reachy.head.l_antenna.goto(80, duration=0.7, interpolation_mode='minimum_jerk', wait=True)
-#     reachy.head.r_antenna.goto(80, duration=0.7, interpolation_mode='minimum_jerk', wait=True)
+while True:
+    reachy.head.l_antenna.goto(80, duration=0.7, interpolation_mode='minimum_jerk', wait=True)
+    reachy.head.r_antenna.goto(80, duration=0.7, interpolation_mode='minimum_jerk', wait=True)
 
-#     reachy.head.l_antenna.goto(0, duration=0.7, interpolation_mode='minimum_jerk', wait=True)
-#     reachy.head.r_antenna.goto(0, duration=0.7, interpolation_mode='minimum_jerk', wait=True)
+    reachy.head.l_antenna.goto(0, duration=0.7, interpolation_mode='minimum_jerk', wait=True)
+    reachy.head.r_antenna.goto(0, duration=0.7, interpolation_mode='minimum_jerk', wait=True)
 
 time.sleep(12)
-reachy.r_arm.turn_off_smoothly()
+# reachy.r_arm.turn_off_smoothly()
 
-reachy.head.l_antenna.goto(0, duration=5)
-reachy.head.r_antenna.goto(0, duration=5)
+# reachy.head.l_antenna.goto(0, duration=5)
+# reachy.head.r_antenna.goto(0, duration=5)
 
-reachy.goto_posture('default')
+# reachy.goto_posture('default')
 
-reachy.head.turn_off()
+# reachy.head.turn_off()
