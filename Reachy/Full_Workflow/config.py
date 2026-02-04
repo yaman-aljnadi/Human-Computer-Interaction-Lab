@@ -9,8 +9,8 @@ REACHY_IP = '192.168.50.241'
 
 # Models
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
-QWEN_MODEL_ID = "Qwen/Qwen2.5-VL-3B-Instruct"
-LLM_MODEL_ID = "Qwen/Qwen1.5-1.8B-Chat"
+QWEN_MODEL_ID = "vikhyatk/moondream2"
+LLM_MODEL_ID = "Qwen/Qwen2.5-1.5B-Instruct"
 WHISPER_MODEL_TYPE = "base.en"
 
 # --- OPENAI TTS SETTINGS ---

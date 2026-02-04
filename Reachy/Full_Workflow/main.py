@@ -182,7 +182,7 @@ class ReachyController:
     def process_request(self, text):
         print(f"\n[Processing Request] User: {text}")
         # The Router: Check if visual info is needed
-        visual_keywords = ["see", "look", "what is this", "find", "describe", "where is"]
+        visual_keywords = ["see", "look", "what is this", "find", "describe", "where is", "where I am", "Show me"]
         needs_vision = any(keyword in text.lower() for keyword in visual_keywords)
         
         visual_context = None

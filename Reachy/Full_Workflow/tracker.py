@@ -9,8 +9,8 @@ class HeadTracker:
         # Load MediaPipe Face Detector (Fast & Accurate)
         self.mp_face_detection = mp.solutions.face_detection
         self.detector = self.mp_face_detection.FaceDetection(
-            model_selection=0,       # 0 = Close range (2m), 1 = Far range (5m)
-            min_detection_confidence=0.5
+            model_selection=1,       # 0 = Close range (2m), 1 = Far range (5m)
+            min_detection_confidence=0.3
         )
         
         # Target coordinates (Smoothed)
