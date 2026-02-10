@@ -41,6 +41,18 @@ class ReachyController:
 
     def start(self):
         """Starts the main loop and listener thread."""
+        
+        # Start the Wave in a separate thread so it doesn't block speech
+        wave_thread = threading.Thread(target=self.body.perform_wave)
+        wave_thread.start()
+        # time.sleep(1.0)
+
+        # Speak immediately (The thread above handles the movement simultaneously)
+        self.speak_and_wait("Hello there, it's nice to see you. How can I be of service today?")
+        
+        # Wait for the wave to actually finish before opening the mic
+        wave_thread.join()
+
         listener_thread = threading.Thread(target=self.listen_loop)
         listener_thread.daemon = True
         listener_thread.start()
@@ -58,6 +70,8 @@ class ReachyController:
             if self.is_muted:
                 time.sleep(0.5)
                 continue
+            
+            self.body.start_listening_behavior()
 
             # It will block here until you speak.
             if self.ears.listen():
@@ -77,6 +91,10 @@ class ReachyController:
                 self.speak_system("Okay, I am back to command mode.")
                 return
 
+            if "sing" in text.lower():
+                self.perform_song()
+                return
+
             # Conversation Mode (Now Routes to process_request)
             if self.conversation_mode or ptt_override:
                 self.is_processing = True
@@ -85,13 +103,9 @@ class ReachyController:
                 self.process_request(text) 
                 return
 
-
-            if "sing" in text.lower():
-                self.perform_song()
-                return
-
             # Specific Commands (Command Mode)
-            if "let's chat" in text:
+            chat_triggers = ["let's chat", "chat mode", "start conversation"]
+            if any(cmd in text.lower() for cmd in chat_triggers):
                 self.conversation_mode = True
                 self.speak_system("I am ready to chat!")
                 return
@@ -181,6 +195,8 @@ class ReachyController:
 
     def process_request(self, text):
         print(f"\n[Processing Request] User: {text}")
+
+        self.body.start_speaking_behavior()
         # The Router: Check if visual info is needed
         visual_keywords = ["see", "look", "what is this", "find", "describe", "where is", "where I am", "Show me"]
         needs_vision = any(keyword in text.lower() for keyword in visual_keywords)
@@ -212,33 +228,6 @@ class ReachyController:
         # Reset state
         self.is_processing = False
 
-        if "sing" in text.lower():
-            print(">>> Singing Mode Activated")
-            self.speak_and_wait("Okay, let me perform a song for you.")
-            
-            # Add a buffer to ensure the Robot's audio device has released the previous TTS
-            print("Preparing audio stream...")
-            time.sleep(1.5) 
-
-            # FORCE STOP LISTENING to clear ALSA/Mic conflicts
-            self.is_processing = True 
-            
-            # Start the dance thread
-            self.body.start_dancing_behavior()
-            
-            # Play the audio
-            if os.path.exists(config.SONG_FILE):
-                print(f"Playing {config.SONG_FILE}...")
-                # The .mp3 will likely play reliably compared to the .wav
-                self.robot.play_audio(config.SONG_FILE, wait=True)
-            else:
-                print(f"ERROR: Could not find song file at {config.SONG_FILE}")
-                time.sleep(5) 
-                        
-            # Reset processing flag so he listens again
-            self.is_processing = False
-            return
-
     def speak_and_wait(self, text, emotion="neutral"):
         """Synthesizes speech (with emotion), moves robot, and waits."""
         
@@ -266,7 +255,7 @@ class ReachyController:
         self.body.start_speaking_behavior()
         self.robot.play_audio(config.TEMP_OUTPUT_AUDIO, wait=False)
         
-        time.sleep(duration + 0.5)
+        time.sleep(duration - 1)
 
         self.body.stop_speaking_behavior()
         

@@ -13,10 +13,19 @@ class BodyLanguage:
         self._thread = None
         self._dance_thread = None
 
+    def start_listening_behavior(self):
+        self.stop_speaking_behavior() 
+
+        self.robot.head.l_antenna.goto(0.0, duration=0.5, wait=False)
+        self.robot.head.r_antenna.goto(0.0, duration=0.5, wait=False)
+
     # SPEAKING BEHAVIOR
-    def start_speaking_behavior(self):
+    def start_speaking_behavior(self, force_head_still=False):
         if self.is_active: return 
+        
         self.is_active = True
+        self.force_head_still = force_head_still # Store the flag
+        
         self._thread = threading.Thread(target=self._behavior_loop)
         self._thread.start()
 
@@ -56,6 +65,44 @@ class BodyLanguage:
         self.robot.head.l_antenna.goto(0, duration=2.0, wait=False)
         self.robot.head.r_antenna.goto(0, duration=2.0, wait=False)
         self.robot.head.look_at(x=1.0, y=0.0, z=0.0, duration=2.0, wait=False)
+
+    def perform_wave(self):
+        """
+        Executes the startup wave animation.
+        """
+        print("[Body] Starting greeting wave...")
+        self.robot.r_arm.turn_on()
+
+        neutral_pos = [0, 0, 0, 0, 0, 0, 0]
+        
+        # Ready Position (Arm up)
+        # dict: s.p: -30, s.r: 10, e.y: -10, e.p: -95, w.r: 0, w.p: -40, w.y: 0
+        # Upper arm raised, elbow bent, palm facing forward (This is Hell to figure out and I hate it)
+        wave_ready_pos = [-30, 10, -10, -95, 0, -40, 0]
+
+        # Wave Left (Wrist roll -20)
+        wave_left = [-30, 10, -10, -95, -20, -40, 0]
+
+        # Wave Right (Wrist roll 20)
+        wave_right = [-30, 10, -10, -95, 20, -40, 0]
+
+        # --- EXECUTION ---
+        # self.robot.r_arm.goto(neutral_pos, duration=3, wait=True)
+
+        # Move to Ready
+        self.robot.r_arm.goto(wave_ready_pos, duration=3, wait=True)
+
+        # Waving Motion (Loop twice)
+        for _ in range(2):
+            self.robot.r_arm.goto(wave_left, duration=0.5, wait=True)
+            self.robot.r_arm.goto(wave_right, duration=0.5, wait=True)
+
+        # Return to Neutral
+        self.robot.r_arm.goto(neutral_pos, duration=2, wait=True)
+        
+        # Relax
+        self.robot.r_arm.turn_off_smoothly()
+        print("[Body] Wave complete.")
 
     def _dance_loop(self):
             """
@@ -108,7 +155,12 @@ class BodyLanguage:
             head_pitch = random.choice([-0.05, 0, 0.05])
             head_yaw = random.choice([-0.1, 0, 0.1])
 
+            # 2. Always move Antennas (They don't conflict with tracking)
             self.robot.head.l_antenna.goto(l_pos, duration=1, wait=False)
             self.robot.head.r_antenna.goto(r_pos, duration=1, wait=False)
-            self.robot.head.look_at(x=1.0, y=head_yaw, z=head_pitch, duration=1.0, wait=False)
+
+            # 3. ONLY move head if tracking is OFF
+            if not self.force_head_still:
+                self.robot.head.look_at(x=1.0, y=head_yaw, z=head_pitch, duration=1.0, wait=False)
+            
             time.sleep(1.2)

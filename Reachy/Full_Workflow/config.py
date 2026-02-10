@@ -13,8 +13,8 @@ QWEN_MODEL_ID = "vikhyatk/moondream2"
 LLM_MODEL_ID = "Qwen/Qwen2.5-1.5B-Instruct"
 WHISPER_MODEL_TYPE = "base.en"
 
-# --- OPENAI TTS SETTINGS ---
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") # <--- PASTE YOUR KEY HERE
+# OPENAI TTS SETTINGS
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") 
 TTS_MODEL = "tts-1"       
 
 # Map emotions to specific OpenAI Voices

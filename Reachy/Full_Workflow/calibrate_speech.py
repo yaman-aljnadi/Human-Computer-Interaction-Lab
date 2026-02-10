@@ -44,8 +44,8 @@ def run_calibration():
         robot.play_audio(config.TEMP_OUTPUT_AUDIO, wait=False)
         
         # Sleep for the exact duration + small buffer (0.5s) for network latency
-        print(f" -> Sleeping for {duration + 0.5:.2f}s...")
-        time.sleep(duration + 0.5)
+        print(f" -> Sleeping for {duration:.2f}s...")
+        time.sleep(duration - 0.8)
         print(" -> Done.")
 
     print("\nCalibration Complete. If the speech didn't cut off, the logic is valid.")

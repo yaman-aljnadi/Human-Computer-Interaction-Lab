@@ -47,9 +47,28 @@ class ReachyRobot:
 
     # Existing Helper Methods 
     def get_frame(self):
-        """Returns the left eye frame."""
-        frame, _ = self.sdk.cameras.teleop.get_frame(CameraView.LEFT)
-        return frame
+        """Returns the left eye frame, handling errors gracefully."""
+        # 1. Check if teleop is even available (sometimes it loads late)
+        if self.sdk.cameras.teleop is None:
+            print("[Camera] Teleop service not ready yet.")
+            time.sleep(0.5)  # Wait a bit before trying again
+            return None
+
+        try:
+            # 2. Try to get the frame
+            result = self.sdk.cameras.teleop.get_frame(CameraView.LEFT)
+            
+            # 3. Check if result is None (Timeout/Error)
+            if result is None:
+                return None
+            
+            # 4. Safe unpack
+            frame, _ = result
+            return frame
+
+        except Exception as e:
+            print(f"[Camera] Error getting frame: {e}")
+            return None
 
     def look_forward(self):
         """Resets head position."""
@@ -87,7 +106,7 @@ class ReachyRobot:
                 
             # Wait (Blocking)
             if wait:
-                time.sleep(duration)
+                time.sleep(duration - 0.5)
 
     def look_at_smooth(self, x, y, z):
         """
@@ -99,7 +118,7 @@ class ReachyRobot:
             self.sdk.head.cancel_all_goto()
             
             # Duration must be slightly larger than your loop speed (latency)
-            self.sdk.head.look_at(x=x, y=y, z=z, duration=0.2, wait=False)
+            self.sdk.head.look_at(x=x, y=y, z=z, duration=0.1, wait=False)
         except Exception as e:
             print(f"Head Error: {e}")
             
