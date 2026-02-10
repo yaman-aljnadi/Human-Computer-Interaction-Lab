@@ -3,27 +3,26 @@ import time
 
 reachy = ReachySDK(host='192.168.50.241') 
 
-# TURN OFF torque to make arms compliant (movable by hand)
-reachy.turn_off() 
+reachy.r_arm.turn_off()
 
 print("--- Reachy is now in Compliant Mode ---")
-print("You can move the arm manually. Press Ctrl+C to stop.\n")
+print("Move the arm to the positions you want to record.")
+print("The code will print the joint angles in a format you can copy-paste.")
+print("Press Ctrl+C to stop.\n")
 
 try:
     while True:
-        pose_matrix = reachy.r_arm.forward_kinematics()
+        s_pitch = reachy.r_arm.shoulder.pitch.present_position
+        s_roll  = reachy.r_arm.shoulder.roll.present_position
+        e_yaw   = reachy.r_arm.elbow.yaw.present_position
+        e_pitch = reachy.r_arm.elbow.pitch.present_position
 
-        x_pos = pose_matrix[0, 3]
-        y_pos = pose_matrix[1, 3]
-        z_pos = pose_matrix[2, 3]
+        print(f"{{ 'r_arm.shoulder.pitch': {s_pitch:.1f}, "
+              f"'r_arm.shoulder.roll': {s_roll:.1f}, "
+              f"'r_arm.elbow.yaw': {e_yaw:.1f}, "
+              f"'r_arm.elbow.pitch': {e_pitch:.1f} }}")
 
-        print(f"X: {x_pos:.3f} | Y: {y_pos:.3f} | Z: {z_pos:.3f} ")
-        
-
-        time.sleep(1)
+        time.sleep(0.5)
 
 except KeyboardInterrupt:
     print("\n--- Monitoring Stopped by User ---")
-
-
-
