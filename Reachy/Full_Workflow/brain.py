@@ -1,106 +1,155 @@
 import torch
 from PIL import Image as PILImage
 from transformers import AutoModelForCausalLM, AutoTokenizer
-# from qwen_vl_utils import process_vision_info
-import re
+from openai import OpenAI
+import json
 import config
-import gc
-
 
 class Brain:
     def __init__(self):
         self.device = config.DEVICE
         
-        # --- (VLM) Part: MOONDREAM SETUP ---
-        print(f"Loading Eyes (VLM: {config.QWEN_MODEL_ID})...")
-        # Moondream runs as a standard AutoModelForCausalLM but needs trust_remote_code=True
+        # --- VLM SETUP (Moondream) ---
+        print(f"[Brain] Loading Eyes ({config.QWEN_MODEL_ID})...")
         self.vlm = AutoModelForCausalLM.from_pretrained(
             config.QWEN_MODEL_ID, 
             trust_remote_code=True,
-            torch_dtype=torch.float16, # Moondream prefers float16
-            device_map={"": self.device} # Explicit device map helps Moondream
+            torch_dtype=torch.float16,
+            device_map={"": self.device}
         )
         self.vlm_tokenizer = AutoTokenizer.from_pretrained(config.QWEN_MODEL_ID)
         
-        # --- (LLM) Part: QWEN SETUP ---
-        print(f"Loading Mind (LLM: {config.LLM_MODEL_ID})...")
-        self.llm = AutoModelForCausalLM.from_pretrained(
-            config.LLM_MODEL_ID,
-            torch_dtype=torch.bfloat16,
-            device_map="auto"
-        )
-        self.llm_tokenizer = AutoTokenizer.from_pretrained(config.LLM_MODEL_ID)
-
-
-        print("Brain Ready.")
-
-    def see(self, cv2_frame, specific_prompt=None):
-        torch.cuda.empty_cache()
-        gc.collect()
-
-        rgb_frame = cv2_frame[:, :, ::-1]
-        pil_image = PILImage.fromarray(rgb_frame)
-
-        if specific_prompt:
-            prompt = f"Answer this question based on the image: {specific_prompt}"
-        else:
-            prompt = "Describe everything you see in this image in detail."
+        # --- LLM SETUP ---
+        print(f"[Brain] Loading Mind ({config.OPENAI_LLM_MODEL})...")
+        self.client = OpenAI(api_key=config.OPENAI_API_KEY)
         
-        try:
-            # 1. Encode the image using Moondream's custom method
-            enc_image = self.vlm.encode_image(pil_image)
-            
-            # 2. Ask the question
-            # Moondream has a helper method .answer_question()
-            answer = self.vlm.answer_question(enc_image, prompt, self.vlm_tokenizer)
-            
-            return answer
+        self.history = []
+        self.max_history = 20 
 
-        except Exception as e:
-            print(f"VLM Error: {e}")
-            return "I couldn't see anything clearly."
-
-    def think(self, user_text, visual_context=None):
-        # 1. Construct System Prompt with Emotion Instructions
-        system_prompt = (
-            "Your name is Reachy and you are a humanoid robot assistant. "
-            "Keep your answers short limited to 2 sentences and make them sound funny"
-            "Don't repeat the previos prompts or mention them again, just give a direct answer."
-            # "You have emotions. When you reply, start your sentence with an emotion tag like [HAPPY], [SAD], [EXCITED], [CONFUSED], or [NEUTRAL]. "
-            # "Example: '[HAPPY] I would love to help you with that!' "
-            # "Example: '[SAD] I am sorry, I cannot do that.' "
-        )
-        
-        if visual_context:
-            system_prompt += f"A VLM has seen this: '{visual_context}'. Answer based on this. DON'T SAY THE WORD VLM in your response."
-
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_text}
+        # Define the tools (Capabilities) the LLM has
+        self.tools = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "see_environment",
+                    "description": "Use this tool ONLY when the user asks to look at something, describe the scene, or identify objects visually.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "focus": {
+                                "type": "string",
+                                "description": "What specific object to look for. If general, use 'describe the scene'."
+                            }
+                        },
+                        "required": ["focus"],
+                    },
+                }
+            }
         ]
 
-        text = self.llm_tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-        model_inputs = self.llm_tokenizer([text], return_tensors="pt").to(self.device)
+        self.system_prompt = (
+            "You are Reachy, a helpful humanoid robot assistant. "
+            "Keep answers short, unless user asks for a detailed answer."
+            "Start sentences with emotion tags: [HAPPY], [NEUTRAL], [CONFUSED], [EXCITED]. "
+            "If the user shows you something or ask you for visuals, ALWAYS use the 'see_environment' tool."
+        )
 
-        generated_ids = self.llm.generate(model_inputs.input_ids, max_new_tokens=70)
-        generated_ids = [output_ids[len(input_ids):] for input_ids, output_ids in zip(model_inputs.input_ids, generated_ids)]
+    def _run_vlm(self, image_frame, prompt_focus):
+        """Internal helper to run Moondream without clearing cache aggressively."""
+        try:
+            rgb_frame = image_frame[:, :, ::-1]
+            pil_image = PILImage.fromarray(rgb_frame)
+            
+            # Moondream specific prompt wrapper
+            enc_image = self.vlm.encode_image(pil_image)
+            answer = self.vlm.answer_question(enc_image, prompt_focus, self.vlm_tokenizer)
+            return answer
+        except Exception as e:
+            print(f"VLM Error: {e}")
+            return "Error: Camera malfunction."
 
-        raw_response = self.llm_tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
-        
+    def think(self, user_text, get_frame_callback):
+        """
+        Main logic loop.
+        get_frame_callback: A function passed from main.py that returns the current CV2 frame.
+        """
+        # 1. Update History
+        self.history.append({"role": "user", "content": user_text})
+        if len(self.history) > self.max_history * 2:
+            self.history = self.history[-self.max_history * 2:]
 
-        
-        # 2. Parse Emotion Tag
-        emotion = "neutral" # Default
-        clean_text = raw_response
+        messages = [{"role": "system", "content": self.system_prompt}] + self.history
 
-        # Regex to find [TAG] at the start
-        match = re.match(r"\[(HAPPY|SAD|EXCITED|NEUTRAL|CONFUSED|ANGRY)\]\s*(.*)", raw_response, re.IGNORECASE | re.DOTALL)
-        
+        # 2. First API Call (Does the LLM want to talk or see?)
+        try:
+            response = self.client.chat.completions.create(
+                model=config.OPENAI_LLM_MODEL,
+                messages=messages,
+                tools=self.tools,
+                tool_choice="auto", 
+                temperature=0.7
+            )
+            
+            response_message = response.choices[0].message
+
+            # 3. Check for Tool Calls (The "Visual" Trigger)
+            tool_calls = response_message.tool_calls
+            
+            if tool_calls:
+                print(f"[Brain] Logic decided to SEE. invoking VLM...")
+                
+                # Append the LLM's "intent to call tool" to history (Required by OpenAI API)
+                messages.append(response_message) 
+
+                for tool_call in tool_calls:
+                    if tool_call.function.name == "see_environment":
+                        # 1. Parse arguments (what is it looking for?)
+                        args = json.loads(tool_call.function.arguments)
+                        focus_prompt = args.get("focus", "Describe the scene")
+                        
+                        # 2. GET IMAGE NOW (Fresh capture)
+                        frame = get_frame_callback()
+                        
+                        if frame is not None:
+                            # 3. RUN VLM
+                            visual_description = self._run_vlm(frame, focus_prompt)
+                            print(f"[VLM Result] {visual_description}")
+                        else:
+                            visual_description = "Error: I could not access my camera."
+
+                        # 4. Feed result back to LLM
+                        messages.append({
+                            "tool_call_id": tool_call.id,
+                            "role": "tool",
+                            "name": "see_environment",
+                            "content": visual_description,
+                        })
+
+                # 5. Second API Call (Synthesize the Answer)
+                final_response = self.client.chat.completions.create(
+                    model=config.OPENAI_LLM_MODEL,
+                    messages=messages
+                )
+                answer_text = final_response.choices[0].message.content
+
+            else:
+                # Normal text conversation
+                answer_text = response_message.content
+
+            # 6. Save and Return
+            self.history.append({"role": "assistant", "content": answer_text})
+            return self._parse_emotion(answer_text)
+
+        except Exception as e:
+            print(f"[Brain Error] {e}")
+            return "I am having a headache.", "sad"
+
+    def _parse_emotion(self, text):
+        import re
+        emotion = "neutral"
+        clean_text = text
+        match = re.match(r"\[(HAPPY|SAD|EXCITED|NEUTRAL|CONFUSED|ANGRY)\]\s*(.*)", text, re.IGNORECASE | re.DOTALL)
         if match:
             emotion = match.group(1).lower()
-            clean_text = match.group(2)
-            print(f"[Brain] Detected Emotion: {emotion}")
-        else:
-            print("[Brain] No emotion tag detected, defaulting to neutral.")
-
+            clean_text = match.group(2).strip()
         return clean_text, emotion

@@ -195,67 +195,61 @@ class ReachyController:
 
     def process_request(self, text):
         print(f"\n[Processing Request] User: {text}")
+        
+        # Start 'Thinking' Body Language
+        # (Optional: Make him tilt head or look thoughtful while API waits)
+        self.body.start_speaking_behavior(force_head_still=True) 
 
-        self.body.start_speaking_behavior()
-        # The Router: Check if visual info is needed
-        visual_keywords = ["see", "look", "what is this", "find", "describe", "where is", "where I am", "Show me"]
-        needs_vision = any(keyword in text.lower() for keyword in visual_keywords)
+        # Define the callback: How the brain gets an image
+        def camera_callback():
+            self.speak_system("Let me take a look.") # Audio feedback
+            self.robot.look_forward() # Ensure head is straight
+            time.sleep(0.5) # Wait for servo settle
+            return self.robot.get_frame()
+
+        # ONE CALL to handle everything
+        # The Brain class now handles the recursion internally
+        response_text, emotion = self.brain.think(text, camera_callback)
         
-        visual_context = None
-        
-        # If Vision is needed
-        if needs_vision:
-            print("[Router] Visual Request Detected. Engaging Eyes...")
-            self.speak_system("Let me take a look.") 
-            
-            frame = self.robot.get_frame()
-            if frame is not None:
-                # CHANGE HERE: We pass the 'text' (user's prompt) into the see function
-                print(f"[VLM Input] Focusing on: '{text}'")
-                visual_context = self.brain.see(frame, specific_prompt=text)
-                
-                print(f"[VLM Output] {visual_context}")
-        
-        # A & B Converge: The LLM thinks 
-        print(f"[Router] Sending to Mind. Visual Context: {visual_context is not None}")
-        
-        # This calls the brain.think handles the merging
-        response_text, emotion = self.brain.think(user_text=text, visual_context=visual_context)
         print(f"Reachy says ({emotion}): {response_text}")
-
         self.speak_and_wait(response_text, emotion)
         
-        # Reset state
         self.is_processing = False
 
     def speak_and_wait(self, text, emotion="neutral"):
         """Synthesizes speech (with emotion), moves robot, and waits."""
         
-        # --- CHANGED HERE: Pass emotion to synthesize ---
         success = self.voice.synthesize(text, config.TEMP_OUTPUT_AUDIO, emotion)
         if not success: return
 
-        # Get Duration (remains same)
         duration = 0
         if os.path.exists(config.TEMP_OUTPUT_AUDIO):
             import contextlib
             import wave
 
+            # Default fallback calculation
             duration = len(text) / 15.0 
             
             try:
                 from mutagen.mp3 import MP3
-                audio = MP3(config.TEMP_OUTPUT_AUDIO)
-                duration = audio.info.length
-            except:
-                pass # Fallback to estimate if mutagen fails or file is wav
+                if config.TEMP_OUTPUT_AUDIO.endswith('.mp3'):
+                    audio = MP3(config.TEMP_OUTPUT_AUDIO)
+                    duration = audio.info.length
+                elif config.TEMP_OUTPUT_AUDIO.endswith('.wav'):
+                    with contextlib.closing(wave.open(config.TEMP_OUTPUT_AUDIO, 'r')) as f:
+                        frames = f.getnframes()
+                        rate = f.getframerate()
+                        duration = frames / float(rate)
+            except Exception as e:
+                print(f"[Audio] Duration Check Failed: {e}")
 
         print(f"[Speaking] Duration: {duration:.2f}s")
 
         self.body.start_speaking_behavior()
         self.robot.play_audio(config.TEMP_OUTPUT_AUDIO, wait=False)
         
-        time.sleep(duration - 1)
+        safe_sleep_time = max(0, duration - config.LISTEN_OVERLAP_TIME)
+        time.sleep(safe_sleep_time)
 
         self.body.stop_speaking_behavior()
         

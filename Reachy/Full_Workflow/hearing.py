@@ -10,31 +10,30 @@ class Ears:
         self.recognizer = sr.Recognizer()
         self.microphone = sr.Microphone()
         
-        # KEY ADJUSTMENT 1: Patience
-        # How long (in seconds) of silence to wait before considering the sentence "done".
-        # Default is 0.8. Increasing this lets you pause to think without being cut off.
-        self.recognizer.pause_threshold = 1.5 
+        # Patience settings
+        self.recognizer.pause_threshold = config.SPEECH_PAUSE_THRESHOLD
+        self.recognizer.dynamic_energy_threshold = False # Set to False to prevent auto-adjusting to robot's own voice
         
-        # Optional: dynamic energy adjustment helps if the room is noisy !doesn't really help but it's somethign (: 
-        self.recognizer.dynamic_energy_threshold = True 
-        
-        print("Ears Ready.")
+        # --- CALIBRATION (Run Once) ---
+        print("Calibrating background noise... (Please be quiet)")
+        with self.microphone as source:
+            self.recognizer.adjust_for_ambient_noise(source, duration=1.0)
+            # We slightly boost the threshold so it ignores quiet breathing/humming
+            # self.recognizer.energy_threshold *= 1.1 --- IGNORE --- 
+            
+        print(f"Ears Ready. Threshold: {self.recognizer.energy_threshold}")
 
     def listen(self):
         """
         Captures audio.
-        Blocks (waits) indefinitely until user speaks.
-        Stops listening only when user stops speaking.
         """
         with self.microphone as source:
-            # Adjust for ambient noise once at the start is usually enough,
-            # but doing it every time is safer if environment changes.
-            self.recognizer.adjust_for_ambient_noise(source, duration=0.5)
-            print("Listening... (Waiting for speech)")
+            # REMOVED: self.recognizer.adjust_for_ambient_noise(source, duration=0.5)
+            # Removing this eliminates the 0.5s delay every turn.
             
+            print("Listening...")
             try:
-                # timeout=None: Wait forever for sound to start.
-                # phrase_time_limit=None: Listen until silence (no hard time limit).
+                # We use the pre-calibrated threshold
                 audio = self.recognizer.listen(source, timeout=None, phrase_time_limit=None)
                 
                 with open(config.TEMP_INPUT_AUDIO, "wb") as f:
@@ -42,7 +41,6 @@ class Ears:
                 return True
             
             except Exception as e:
-                # This catches errors, but usually timeout errors won't happen now.
                 print(f"Mic Error: {e}")
                 return False
 
@@ -50,5 +48,10 @@ class Ears:
         """Transcribes the temp audio file using Whisper."""
         if os.path.exists(config.TEMP_INPUT_AUDIO):
             result = self.model.transcribe(config.TEMP_INPUT_AUDIO)
-            return result["text"].lower().strip()
+            text = result["text"].lower().strip()
+            
+            # Simple filter to ignore empty hallucinations
+            if text in ["you", "thank you", "bye"]: 
+                return ""
+            return text
         return ""

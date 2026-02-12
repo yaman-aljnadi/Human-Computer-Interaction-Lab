@@ -15,10 +15,14 @@ class Voice:
     def synthesize(self, text, output_filename, emotion="neutral"):
         """
         Generates audio using OpenAI API.
-        Selects voice based on the 'emotion' parameter.
         """
-        # Select voice based on emotion map, default to 'alloy' if not found
-        selected_voice = config.EMOTION_VOICE_MAP.get(emotion, "alloy")
+        
+        if not text or len(text.strip()) == 0:
+            print("[Voice] Warning: Received empty text to speak. Skipping.")
+            return False
+            
+        # Select voice
+        selected_voice = config.ROBOT_VOICE
         print(f"[Voice] Generating speech: '{text[:20]}...' using voice: {selected_voice}")
 
         try:
@@ -28,8 +32,6 @@ class Voice:
                 input=text
             )
             
-            # Save to file
-            # OpenAI returns MP3 by default usually, but we can stream to file
             response.stream_to_file(output_filename)
             return True
             
