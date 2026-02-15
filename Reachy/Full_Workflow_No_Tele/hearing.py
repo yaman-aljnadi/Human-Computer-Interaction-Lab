@@ -14,11 +14,11 @@ class Ears:
         self.recognizer.pause_threshold = config.SPEECH_PAUSE_THRESHOLD
         self.recognizer.dynamic_energy_threshold = False # Set to False to prevent auto-adjusting to robot's own voice
         
-        # --- CALIBRATION (Run Once) ---
+        # CALIBRATION (Run Once)
         print("Calibrating background noise... (Please be quiet)")
         with self.microphone as source:
             self.recognizer.adjust_for_ambient_noise(source, duration=1.0)
-            # We slightly boost the threshold so it ignores quiet breathing/humming
+            # slightly boost the threshold so it ignores quiet breathing/humming
             # self.recognizer.energy_threshold *= 1.1 --- IGNORE --- 
             
         print(f"Ears Ready. Threshold: {self.recognizer.energy_threshold}")
@@ -33,7 +33,7 @@ class Ears:
             
             print("Listening...")
             try:
-                # We use the pre-calibrated threshold
+                # Use the pre-calibrated threshold
                 audio = self.recognizer.listen(source, timeout=None, phrase_time_limit=None)
                 
                 with open(config.TEMP_INPUT_AUDIO, "wb") as f:
