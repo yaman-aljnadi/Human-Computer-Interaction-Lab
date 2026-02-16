@@ -5,3 +5,6 @@
 ROS_bags/
 
 .env
+
+__pycache__/
+*.pyc
