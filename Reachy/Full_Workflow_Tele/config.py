@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 # Connection
-REACHY_IP = '192.168.50.241'
+REACHY_IP = '192.168.50.213'
 
 # Models
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
@@ -35,8 +35,8 @@ ROBOT_VOICE = "alloy"
 
 # Audio Files (Temp files)
 TEMP_INPUT_AUDIO = "temp_command.wav"
-TEMP_OUTPUT_AUDIO = "reachy_speech.wav" 
-SYSTEM_AUDIO = "system_speech.wav"
+TEMP_OUTPUT_AUDIO = "reachy_speech.mp3" 
+SYSTEM_AUDIO = "system_speech.mp3"
 
 # Weird Stuff Delete later 
 SONG_FILE = "End_of_Line_trimmed.mp3"

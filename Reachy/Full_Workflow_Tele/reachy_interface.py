@@ -6,6 +6,7 @@ import config
 import contextlib  
 import wave
 from mutagen.mp3 import MP3 
+import pygame
 
 class ReachyRobotVR:
     def __init__(self):
@@ -20,11 +21,20 @@ class ReachyRobotVR:
         # We DO NOT call self.sdk.turn_on() here. 
         # The VR system handles motor stiffness. We must stay passive.
         
+
+        # HEARING THE VOICE FROM REACHY 
+        # try:
+        #     self.sdk.audio.set_volume(80) 
+        # except:
+        #     pass
+        # print("[VR Interface] Reachy Connected (Passive Mode).")
+
+        # HEARING THE VOICE FROM THE HEADSET
         try:
-            self.sdk.audio.set_volume(80) 
-        except:
-            pass
-        print("[VR Interface] Reachy Connected (Passive Mode).")
+            pygame.mixer.init()
+            print("[VR Interface] Local Audio Mixer Ready for Headset.")
+        except Exception as e:
+            print(f"[Audio Init Error] {e}")
 
     def get_frame(self):
         """Returns the left eye frame for the VLM."""
@@ -48,30 +58,45 @@ class ReachyRobotVR:
             print(f"[Audio] Error: File not found: {file_path}")
             return
 
-        # Calculate Duration (reused logic from your original code)
+        # 1. Calculate EXACT duration using calibrate_speech logic
         duration = 5.0 
         try:
-            if file_path.endswith('.mp3'):
-                audio = MP3(file_path)
-                duration = audio.info.length
-            elif file_path.endswith('.wav'):
+            if file_path.endswith('.wav'):
                 with contextlib.closing(wave.open(file_path, 'r')) as f:
                     frames = f.getnframes()
                     rate = f.getframerate()
                     duration = frames / float(rate)
+            elif file_path.endswith('.mp3'):
+                audio = MP3(file_path)
+                duration = audio.info.length
         except Exception as e:
             print(f"[Audio] Could not read duration: {e}. Using default.")
 
-        # Play
+        # # 2. Play the file on Reachy
+        # # HEARING THE VOICE FROM REACHY 
+        # try:
+        #     self.sdk.audio.upload_audio_file(file_path)
+        #     self.sdk.audio.play_audio_file(file_path)
+        # except Exception as e:
+        #     print(f"[Audio Error] {e}")
+
         try:
-            self.sdk.audio.upload_audio_file(file_path)
-            self.sdk.audio.play_audio_file(file_path)
+            pygame.mixer.music.load(file_path)
+            pygame.mixer.music.play()
         except Exception as e:
             print(f"[Audio Error] {e}")
             
+        # 3. Wait exact duration + positive buffer to avoid loop listening
         if wait:
-            # We wait so the script doesn't listen to its own voice
-            time.sleep(duration - 0.5)
+            # Add a small POSITIVE buffer (0.2s to 0.5s) to outlast the playback tail
+            time.sleep(duration + 0.3)
+            
+            # --- NEW: Force Pygame to release the file lock ---
+            pygame.mixer.music.stop()
+            try:
+                pygame.mixer.music.unload() 
+            except AttributeError:
+                pass # Safety catch for older Pygame versions
 
     def disconnect(self):
         self.sdk.disconnect()

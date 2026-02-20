@@ -29,7 +29,8 @@ class Voice:
             response = self.client.audio.speech.create(
                 model=config.TTS_MODEL,
                 voice=selected_voice,
-                input=text
+                input=text,
+                # response_format="wav"  # <-- ADD THIS LINE to fix the format crash
             )
             
             response.stream_to_file(output_filename)
