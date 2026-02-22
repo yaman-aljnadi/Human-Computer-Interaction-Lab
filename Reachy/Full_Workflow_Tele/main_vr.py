@@ -9,8 +9,7 @@ import openvr
 from hearing import Ears
 from speaking import Voice
 from brain import Brain
-
-# Import the NEW VR Interface
+from safety_monitor import SafetyMonitor
 from reachy_interface import ReachyRobotVR
 
 class ReachyControllerVR:
@@ -26,6 +25,8 @@ class ReachyControllerVR:
         self.is_processing = False
         self.conversation_mode = True # Default to True for VR usage usually
         self.is_muted = False
+
+        self.safety_monitor = SafetyMonitor(self.robot, self.speak_system)
         
         # --- NEW: OPENVR SETUP ---
         self.vrsystem = None
@@ -41,10 +42,11 @@ class ReachyControllerVR:
 
     def start(self):
         """Starts the main loop and listener thread."""
-        
         # Audio Greeting (No Wave)
         print("System Ready. Greeting user...")
         self.speak_and_wait("System online.")
+
+        self.safety_monitor.start()
 
         # Start Listening Thread
         listener_thread = threading.Thread(target=self.listen_loop)
@@ -70,18 +72,31 @@ class ReachyControllerVR:
                     self.handle_command(text)
 
     def handle_command(self, text):
-        """Decides what to do based on user text."""
+        # Define flexible lists of trigger phrases
+        pause_commands = [
+            "stop chatting", "stop conversation", "pause conversation", 
+            "be quiet", "mute yourself", "stop talking", "go to sleep",
+            "hold on a second"
+        ]
         
-        # Stop Command
-        if "stop chatting" in text or "stop conversation" in text:
-            self.conversation_mode = False
-            self.speak_system("Pausing conversation.")
+        resume_commands = [
+            "start conversation", "resume", "resume chatting", 
+            "wake up", "unmute", "start talking", "let's talk", 
+            "let's chat", "are you there"
+        ]
+        
+        # Stop Command Logic
+        if any(command in text for command in pause_commands):
+            if self.conversation_mode: # Only trigger if currently talking
+                self.conversation_mode = False
+                self.speak_system("Pausing conversation.")
             return
 
-        # Resume Command
-        if "start conversation" in text or "resume" in text:
-            self.conversation_mode = True
-            self.speak_system("Resuming conversation.")
+        # Resume Command Logic
+        if any(command in text for command in resume_commands):
+            if not self.conversation_mode: # Only trigger if currently paused
+                self.conversation_mode = True
+                self.speak_system("Resuming conversation.")
             return
 
         # If in chat mode, send to Brain
@@ -182,12 +197,9 @@ class ReachyControllerVR:
 
     def display_loop(self):
         print("Display Active. Press 'q' to quit, 'm' to mute.")
-        
-        # Track previous state so holding the button doesn't rapidly toggle
         button_was_pressed = False 
 
         while self.running:
-            # --- NEW: CHECK VR CONTROLLER INPUT ---
             is_button_pressed = self.check_vr_button_state() 
 
             if is_button_pressed and not button_was_pressed:
@@ -195,7 +207,6 @@ class ReachyControllerVR:
                 button_was_pressed = True
             elif not is_button_pressed:
                 button_was_pressed = False
-            # --------------------------------------
 
             frame = self.robot.get_frame()
 
@@ -207,18 +218,30 @@ class ReachyControllerVR:
                     self.is_muted = not self.is_muted
                     print(f"Muted: {self.is_muted}")
 
-                # UI Overlay Updates
                 audio_status = "MUTED" if self.is_muted else "LISTENING"
                 chat_status = "CHAT ON" if self.conversation_mode else "CHAT OFF"
-                
-                color = (0, 0, 255) if self.is_muted or not self.conversation_mode else (0, 255, 0)
-                
-                cv2.putText(frame, f"VR COMPANION MODE | {audio_status} | {chat_status}", (30, 50), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
+                base_color = (0, 0, 255) if self.is_muted or not self.conversation_mode else (0, 255, 0)
+                cv2.putText(frame, f"VR COMPANION | {audio_status} | {chat_status}", (30, 40), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, base_color, 2)
+
+                # --- 2. Safety HUD Overlay ---
+                threat_level = self.safety_monitor.highest_threat_level
+                status_msgs = self.safety_monitor.status_messages
+
+                if threat_level > 0:
+                    header_color = (0, 0, 255) if threat_level == 3 else (0, 165, 255)
+                    header_text = "DANGER DETECTED" if threat_level == 3 else "WARNING"
+                    cv2.putText(frame, f"STATUS: {header_text}", (30, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.8, header_color, 2)
+                    
+                    y_offset = 110
+                    for level, text, color in status_msgs:
+                        cv2.putText(frame, text, (30, y_offset), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+                        y_offset += 30
 
                 cv2.imshow("Reachy VR Vision (Debug)", frame)
 
         cv2.destroyAllWindows()
+        self.safety_monitor.stop()
         self.robot.disconnect()
 
 

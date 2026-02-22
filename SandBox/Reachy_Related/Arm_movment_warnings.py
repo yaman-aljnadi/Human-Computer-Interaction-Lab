@@ -137,7 +137,8 @@ def main():
             
             if level > 0:
                 # Add to display list
-                status_text = f"{config['msg']} ({val:.1f})"
+                # status_text = f"{config['msg']} ({val:.1f})"
+                status_text = f"{config['msg']}"
                 status_messages.append((level, status_text, color))
                 
                 if level > highest_threat_level:
@@ -146,13 +147,16 @@ def main():
         # Sort messages so DANGER is at top
         status_messages.sort(key=lambda x: x[0], reverse=True)
 
-        if highest_threat_level == 3:
-            # Pick the top danger message to speak
-            top_msg = status_messages[0][1] # Get text
-            announcer.speak(f"Danger. {top_msg}")
-        elif highest_threat_level == 2:
+
+        if highest_threat_level == 2:
             top_msg = status_messages[0][1]
             announcer.speak(f"Warning. {top_msg}")
+
+        # elif highest_threat_level == 3:
+        #     # Pick the top danger message to speak
+        #     top_msg = status_messages[0][1] # Get text
+        #     announcer.speak(f"Danger. {top_msg}")
+
 
         result = reachy.cameras.teleop.get_frame(CameraView.RIGHT)
         if result is not None:

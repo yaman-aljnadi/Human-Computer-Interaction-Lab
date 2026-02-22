@@ -7,6 +7,7 @@ import config
 import wave
 import contextlib
 
+import torch
 
 from movement import BodyLanguage
 from hearing import Ears
@@ -14,6 +15,13 @@ from speaking import Voice
 from brain import Brain
 from reachy_interface import ReachyRobot
 from tracker import HeadTracker
+
+
+print(torch.__version__)
+print(torch.cuda.is_available())
+print(torch.cuda.current_device())
+print(torch.cuda.get_device_name(0))
+
 
 class ReachyController:
     def __init__(self):
