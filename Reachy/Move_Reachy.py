@@ -4,7 +4,7 @@ import numpy as np
 
 import time
 
-reachy = ReachySDK(host='192.168.50.241')
+reachy = ReachySDK(host='192.168.50.213')
 
 reachy.head.turn_on()
 reachy.r_arm.turn_on()
@@ -59,4 +59,4 @@ reachy.l_arm.turn_off_smoothly()
 
 reachy.goto_posture('default')
 
-# reachy.head.turn_off()
+reachy.head.turn_off()
