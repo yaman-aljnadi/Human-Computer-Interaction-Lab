@@ -11,16 +11,19 @@ When opening the project in Unity, the console throws the following compilation 
 `error CS0246: The type or namespace name 'Sigtrap' could not be found`
 
 **The Cause:**
-The project relies on an open-source VR comfort plugin called **VR Tunnelling Pro** (by Sigtrap Games). If you downloaded the project via the GitHub "Download ZIP" button, GitHub strips out submodules, leaving this dependency completely missing.
+The project relies on an open-source VR comfort plugin called **VR Tunnelling Pro** (by Sigtrap Games) to help prevent motion sickness. This plugin is linked as a Git submodule in the original repository. If the project is downloaded directly as a ZIP from GitHub instead of cloned via command line, GitHub leaves the submodule folder empty, causing Unity to fail when looking for the code.
 
 **The Fix:**
-Delete your current project folder and re-download it via the command line using Git to ensure all submodules are pulled correctly:
+Manually import the missing VR Tunnelling Pro plugin directly into the Unity project:
 
-1. Open your terminal or command prompt.
-2. Run the following command:
-`git clone --recurse-submodules -b master https://github.com/pollen-robotics/Reachy2Teleoperation.git`
-3. Open the newly cloned folder in Unity.
+1. Go to the official VR Tunnelling Pro GitHub releases page: [https://github.com/sigtrapgames/VrTunnellingPro-Unity/releases](https://github.com/sigtrapgames/VrTunnellingPro-Unity/releases)
+2. Download the `VR.Tunnelling.Pro.V1-4-0.unitypackage` file.
+3. Open the Reachy project in Unity.
+4. In the top menu bar, navigate to **Assets > Import Package > Custom Package...**
+5. Select the `.unitypackage` file you just downloaded.
+6. A window will pop up showing the files to import. Leave them all checked and click **Import**.
 
+Once Unity recompiles, the `MotionSicknessManager` will recognize the Sigtrap namespace, and the error will clear.
 ---
 
 ## 2. GStreamer DLL "Unknown Architecture" & High Ping
