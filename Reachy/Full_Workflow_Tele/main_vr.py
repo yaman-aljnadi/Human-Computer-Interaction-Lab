@@ -5,6 +5,9 @@ import cv2
 import config
 import openvr
 
+import socket
+import json
+
 # Import the logic modules (Reusing your existing files)
 from hearing import Ears
 from speaking import Voice
@@ -19,6 +22,10 @@ class ReachyControllerVR:
         self.ears = Ears()
         self.voice = Voice()
         self.brain = Brain() 
+
+        self.udp_ip = "127.0.0.1" # Localhost (sending to the same computer)
+        self.udp_port = 5006      # The port Unity will listen on
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
         # State flags
         self.running = True
@@ -116,7 +123,18 @@ class ReachyControllerVR:
         # Send to Brain
         # The brain returns emotion, but we ignore it since we can't move!
         response_text, emotion = self.brain.think(text, camera_callback)
-        
+
+        # For Unity Feedback
+        subtitle_data = {
+            "speech": response_text, 
+            "emotion": emotion
+        }
+        try:
+            self.sock.sendto(json.dumps(subtitle_data).encode('utf-8'), (self.udp_ip, self.udp_port))
+        except Exception as e:
+            print(f"UDP Error: {e}")
+        ###
+
         print(f"Reachy says: {response_text}")
         self.speak_and_wait(response_text)
         
@@ -210,6 +228,24 @@ class ReachyControllerVR:
 
             frame = self.robot.get_frame()
 
+            # --- NEW: Package the HUD Data for Unity ---
+            threat_level = self.safety_monitor.highest_threat_level
+            # Extract just the text from the (level, text, color) tuples
+            safety_texts = [msg[1] for msg in self.safety_monitor.status_messages]
+
+            hud_data = {
+                "is_muted": self.is_muted,
+                "conversation_mode": self.conversation_mode,
+                "threat_level": threat_level,
+                "safety_messages": safety_texts
+            }
+
+            # Fire the data to Unity over UDP instantly
+            try:
+                self.sock.sendto(json.dumps(hud_data).encode('utf-8'), (self.udp_ip, self.udp_port))
+            except Exception as e:
+                pass # Ignore occasional network drops
+
             if frame is not None:
                 key = cv2.waitKey(1)
                 if key == ord('q'):
@@ -218,27 +254,8 @@ class ReachyControllerVR:
                     self.is_muted = not self.is_muted
                     print(f"Muted: {self.is_muted}")
 
-                audio_status = "MUTED" if self.is_muted else "LISTENING"
-                chat_status = "CHAT ON" if self.conversation_mode else "CHAT OFF"
-                base_color = (0, 0, 255) if self.is_muted or not self.conversation_mode else (0, 255, 0)
-                cv2.putText(frame, f"VR COMPANION | {audio_status} | {chat_status}", (30, 40), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, base_color, 2)
-
-                # --- 2. Safety HUD Overlay ---
-                threat_level = self.safety_monitor.highest_threat_level
-                status_msgs = self.safety_monitor.status_messages
-
-                if threat_level > 0:
-                    header_color = (0, 0, 255) if threat_level == 3 else (0, 165, 255)
-                    header_text = "DANGER DETECTED" if threat_level == 3 else "WARNING"
-                    cv2.putText(frame, f"STATUS: {header_text}", (30, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.8, header_color, 2)
-                    
-                    y_offset = 110
-                    for level, text, color in status_msgs:
-                        cv2.putText(frame, text, (30, y_offset), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
-                        y_offset += 30
-
-                cv2.imshow("Reachy VR Vision (Debug)", frame)
+                # Show the clean debug window on your PC monitor (no text overlay)
+                cv2.imshow("Reachy VR Vision (Debug - No HUD)", frame)
 
         cv2.destroyAllWindows()
         self.safety_monitor.stop()
