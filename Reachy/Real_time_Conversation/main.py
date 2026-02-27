@@ -6,7 +6,9 @@ import cv2
 import audioop
 import os
 from openai import AsyncOpenAI
+from dotenv import load_dotenv
 
+load_dotenv()
 # --- Configuration ---
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") 
 OPENAI_REALTIME_MODEL = "gpt-realtime-2025-08-28"
