@@ -8,15 +8,16 @@ load_dotenv()
 REACHY_IP = '192.168.50.213'
 
 # Models
-DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
-QWEN_MODEL_ID = "vikhyatk/moondream2"
+# DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
+# QWEN_MODEL_ID = "vikhyatk/moondream2"
 # LLM_MODEL_ID = "Qwen/Qwen2.5-1.5B-Instruct"
-OPENAI_LLM_MODEL = "gpt-4o"
 WHISPER_MODEL_TYPE = "base.en"
 
 # OPENAI TTS SETTINGS
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") 
-TTS_MODEL = "gpt-4o-mini-tts"      
+# OPENAI_LLM_MODEL = "gpt-4o"
+# TTS_MODEL = "gpt-4o-mini-tts"      
+OPENAI_REALTIME_MODEL = "gpt-realtime-2025-08-28"
 
 LISTEN_OVERLAP_TIME = 1.2
 SPEECH_PAUSE_THRESHOLD = 2.5
