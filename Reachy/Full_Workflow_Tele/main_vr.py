@@ -10,7 +10,7 @@ import json
 
 from safety_monitor import SafetyMonitor
 from reachy_interface import ReachyRobotVR
-from realtime_brain import RealtimeBrain # <--- New Import
+from realtime_brain import RealtimeBrain 
 
 class ReachyControllerVR:
     def __init__(self):
@@ -28,7 +28,7 @@ class ReachyControllerVR:
         self.safety_monitor = SafetyMonitor(self.robot, self.speak_system)
         
         # --- INIT REALTIME BRAIN ---
-        self.brain = RealtimeBrain(self.get_camera_frame)
+        self.brain = RealtimeBrain(self.get_camera_frame, condition="embodied")
         self.brain_loop = asyncio.new_event_loop()
         
         # OpenVR Setup (Kept the same)

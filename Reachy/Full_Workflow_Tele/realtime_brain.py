@@ -8,9 +8,8 @@ from openai import AsyncOpenAI
 import config
 
 class RealtimeBrain:
-    def __init__(self, get_frame_callback):
+    def __init__(self, get_frame_callback, condition="embodied"):
         self.get_frame_callback = get_frame_callback
-        
         self.client = AsyncOpenAI(api_key=config.OPENAI_API_KEY)
         
         self.audio_format = pyaudio.paInt16
@@ -26,12 +25,15 @@ class RealtimeBrain:
         self.speaker_stream = None
         self.is_connected = False
 
-        self.system_prompt = (
-            "You are Reachy, a helpful humanoid robot assistant. "
-            "The user is using a VR helmet to control you, but you can speak with him. "
-            "Keep answers short. "
-            "If the user shows you something or asks you to look, ALWAYS use the 'see_environment' tool."
-        )
+        prompt_file = "prompts/embodied_prompt.txt" if condition == "embodied" else "prompts/copilot_prompt.txt"
+
+        try:
+            with open(prompt_file, "r") as file:
+                self.system_prompt = file.read()
+            print(f"[RealtimeBrain] Loaded prompt from {prompt_file}")
+        except FileNotFoundError:
+            print(f"[ERROR] Could not find {prompt_file}. Falling back to default.")
+            self.system_prompt = "You are Reachy, a helpful robot."
 
     async def _audio_input_task(self, connection):
         print(f"[Audio Task] Opening mic at {self.native_rate}Hz to prevent static...")
