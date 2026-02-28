@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 # Connection
-REACHY_IP = '192.168.50.213'
+REACHY_IP = '192.168.50.242'
 
 # Models
 # DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
@@ -17,8 +17,8 @@ WHISPER_MODEL_TYPE = "base.en"
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") 
 # OPENAI_LLM_MODEL = "gpt-4o"
 # TTS_MODEL = "gpt-4o-mini-tts"      
-# OPENAI_REALTIME_MODEL = "gpt-realtime-2025-08-28"
-OPENAI_REALTIME_MODEL = "gpt-realtime-mini-2025-12-15"
+OPENAI_REALTIME_MODEL = "gpt-realtime-2025-08-28"
+# OPENAI_REALTIME_MODEL = "gpt-realtime-mini-2025-12-15"
 
 
 LISTEN_OVERLAP_TIME = 1.2
