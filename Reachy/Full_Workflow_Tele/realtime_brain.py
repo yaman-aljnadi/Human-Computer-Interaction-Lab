@@ -25,6 +25,8 @@ class RealtimeBrain:
         self.speaker_stream = None
         self.is_connected = False
 
+        self.audio_out_queue = asyncio.Queue()
+
         prompt_file = "prompts/embodied_prompt.txt" if condition == "embodied" else "prompts/copilot_prompt.txt"
 
         try:
@@ -77,7 +79,7 @@ class RealtimeBrain:
                 rate=self.openai_rate, output=True 
             )
         except Exception as e:
-             print(f"[Audio Task ERROR] Speaker failed to open: {e}")
+            print(f"[Audio Task ERROR] Speaker failed to open: {e}")
 
         async with self.client.realtime.connect(model=config.OPENAI_REALTIME_MODEL) as conn:
             print("[Realtime] Connected!")
@@ -114,11 +116,24 @@ class RealtimeBrain:
                 "tool_choice": "auto"
             })
 
+            # --- MODIFICATION START ---
+            # Start both the microphone input task and the new audio output task
             asyncio.create_task(self._audio_input_task(conn))
+            asyncio.create_task(self._audio_output_task()) 
+            # --- MODIFICATION END ---
 
             async for event in conn:
                 if event.type == "input_audio_buffer.speech_started":
-                    print("\n[OpenAI] Detected you are speaking...")
+                    print("\n[OpenAI] Detected you are speaking. Interrupted!")
+                    
+                    # --- MODIFICATION START ---
+                    # 1. Clear the pending audio queue instantly when the user speaks
+                    while not self.audio_out_queue.empty():
+                        try:
+                            self.audio_out_queue.get_nowait()
+                        except asyncio.QueueEmpty:
+                            break
+                    # --- MODIFICATION END ---
                     
                 elif event.type == "input_audio_buffer.speech_stopped":
                     print("[OpenAI] Speech stopped. Processing...")
@@ -139,7 +154,10 @@ class RealtimeBrain:
                 elif event.type in ("response.audio.delta", "response.output_audio.delta"):
                     if self.speaker_stream:
                         audio_bytes = base64.b64decode(event.delta)
-                        self.speaker_stream.write(audio_bytes)
+                        # --- MODIFICATION START ---
+                        # Put audio into the queue instead of blocking the main event loop
+                        self.audio_out_queue.put_nowait(audio_bytes)
+                        # --- MODIFICATION END ---
                 
                 elif event.type == "response.function_call_arguments.done":
                     if getattr(event, "name", "") == "see_environment":
@@ -186,13 +204,6 @@ class RealtimeBrain:
                                 "instructions": "Answer concisely in speech about what you just saw.",
                             }
                         )
-                
-                # CATCH-ALL DEBUG (Optional but highly recommended)
-                # This will print any unhandled events so you aren't blind to what the server is doing
-                elif event.type not in ("response.audio.delta", "response.output_audio.delta"):
-                    # Uncomment the line below if you want to see all background events 
-                    # print(f"[DEBUG EVENT] {event.type}")
-                    pass
 
     def stop(self):
         self.is_connected = False
@@ -200,3 +211,19 @@ class RealtimeBrain:
             self.speaker_stream.stop_stream()
             self.speaker_stream.close()
         self.pyaudio_instance.terminate()
+
+
+    async def _audio_output_task(self):
+            """Pulls audio from the queue and plays it without blocking the main loop."""
+            while self.is_connected:
+                try:
+                    # Wait for audio chunks from the server
+                    audio_bytes = await self.audio_out_queue.get()
+                    if audio_bytes and self.speaker_stream:
+                        # Run the blocking PyAudio write in a separate thread
+                        loop = asyncio.get_event_loop()
+                        await loop.run_in_executor(None, self.speaker_stream.write, audio_bytes)
+                except asyncio.CancelledError:
+                    break
+                except Exception as e:
+                    print(f"[Audio Output Error] {e}")

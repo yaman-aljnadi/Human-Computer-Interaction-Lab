@@ -28,7 +28,7 @@ class ReachyControllerVR:
         self.safety_monitor = SafetyMonitor(self.robot, self.speak_system)
         
         # --- INIT REALTIME BRAIN ---
-        self.brain = RealtimeBrain(self.get_camera_frame, condition="embodied")
+        self.brain = RealtimeBrain(self.get_camera_frame, condition="Co-Pilot")
         self.brain_loop = asyncio.new_event_loop()
         
         # OpenVR Setup (Kept the same)
