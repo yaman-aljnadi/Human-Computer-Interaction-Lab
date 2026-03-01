@@ -11,11 +11,13 @@ import json
 from safety_monitor import SafetyMonitor
 from reachy_interface import ReachyRobotVR
 from realtime_brain import RealtimeBrain 
+from vision_tracker import VisionTracker
 
 class ReachyControllerVR:
     def __init__(self):
         print(">>> STARTING VR COMPANION MODE (REALTIME) <<<")
         self.robot = ReachyRobotVR()
+        self.vision_tracker = VisionTracker()
         
         self.udp_ip = "127.0.0.1"
         self.udp_port = 5006
@@ -56,6 +58,17 @@ class ReachyControllerVR:
             self.brain_loop.run_until_complete(self.brain.start_session())
         except Exception as e:
             print(f"Realtime loop ended: {e}")
+
+    def get_camera_data(self):
+        """Callback for the brain to grab the VR view AND the CV report."""
+        head_frame = self.robot.get_frame()
+        
+        # Package the tracker data into a string
+        report = f"Sorting Status: {self.vision_tracker.latest_status}\n"
+        report += f"Block Counts: {self.vision_tracker.block_counts}\n"
+        report += "Detected Items:\n" + "\n".join(self.vision_tracker.detected_objects_report)
+        
+        return head_frame, report
 
     def start(self):
         self.safety_monitor.start()
@@ -117,22 +130,32 @@ class ReachyControllerVR:
         print("Display Active. Press 'q' to quit.")
         
         while self.running:
-            # Check VR buttons (You might want to map this to mute the mic in the future)
             self.check_vr_button_state() 
 
-            frame = self.robot.get_frame()
+            # Get the head camera for VR viewing (and OpenAI)
+            head_frame = self.robot.get_frame()
+            
+            # --- NEW: Get the 3D Torso Camera frames ---
+            torso_rgb, torso_depth = self.robot.get_torso_rgbd()
 
-            if frame is not None:
-                key = cv2.waitKey(1)
-                if key == ord('q'):
-                    self.running = False
-                    self.brain.stop()
+            # Process the torso vision if available
+            if torso_rgb is not None and torso_depth is not None:
+                # We now pass BOTH frames into the tracker
+                processed_frame = self.vision_tracker.process_frame(torso_rgb, torso_depth)
+                
+                # Show the tracking on the torso camera feed
+                cv2.imshow("Reachy Depth Tracking", processed_frame)
+                
+            # Keep showing the raw head camera for the VR headset
+            if head_frame is not None:
+                cv2.imshow("Reachy VR Vision", head_frame)
 
-                cv2.imshow("Reachy VR Vision", frame)
+            key = cv2.waitKey(1)
+            if key == ord('q'):
+                self.running = False
+                self.brain.stop()
 
         cv2.destroyAllWindows()
-        self.safety_monitor.stop()
-        self.robot.disconnect()
 
 if __name__ == '__main__':
     controller = ReachyControllerVR()

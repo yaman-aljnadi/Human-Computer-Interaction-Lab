@@ -105,3 +105,26 @@ class ReachyRobotVR:
 
     def disconnect(self):
         self.sdk.disconnect()
+
+
+    def get_torso_rgbd(self):
+            """Returns the RGB frame and Depth frame from the torso camera."""
+            if self.sdk.cameras.depth is None:
+                return None, None
+
+            try:
+                # Get the color image
+                rgb_result = self.sdk.cameras.depth.get_frame()
+                # Get the 3D depth map
+                depth_result = self.sdk.cameras.depth.get_depth_frame()
+
+                if rgb_result is None or depth_result is None:
+                    return None, None
+
+                rgb_frame, _ = rgb_result
+                depth_frame, _ = depth_result
+                return rgb_frame, depth_frame
+                
+            except Exception as e:
+                print(f"[Depth Camera] Error: {e}")
+                return None, None
