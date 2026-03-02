@@ -4,16 +4,14 @@ import threading
 # --- CONFIGURATION ---
 LIMITS_CONFIG = {
     # RIGHT ARM
-    'r_arm.shoulder.pitch': {'limit': -80.0, 'dir': 'less', 'msg': "Right Arm Too High"}, 
-    'r_arm.shoulder.roll_out': {'limit': -70.0, 'dir': 'less', 'msg': "Right Arm Too Far Out"}, 
-    # 'r_arm.shoulder.roll_in':  {'limit': 20.0,  'dir': 'greater', 'msg': "Right Arm Hitting Stomach"}, 
-    'r_arm.elbow.pitch':       {'limit': -125.0,'dir': 'less', 'msg': "Right Elbow Max Flex"}, 
+    'r_arm.shoulder.pitch': {'limit': -80.0, 'dir': 'less', 'msg': "right shoulder is raised way too high"}, 
+    'r_arm.shoulder.roll_out': {'limit': -70.0, 'dir': 'less', 'msg': "right arm is stretched all the way out"}, 
+    'r_arm.elbow.pitch':       {'limit': -125.0,'dir': 'less', 'msg': "right elbow is tucked all the way in"}, 
 
     # LEFT ARM
-    'l_arm.shoulder.pitch': {'limit': -85.0, 'dir': 'less', 'msg': "Left Arm Too High"}, 
-    'l_arm.shoulder.roll_out': {'limit': 70.0,  'dir': 'greater', 'msg': "Left Arm Too Far Out"}, 
-    # 'l_arm.shoulder.roll_in':  {'limit': -20.0, 'dir': 'less', 'msg': "Left Arm Hitting Stomach"}, 
-    'l_arm.elbow.pitch':       {'limit': -128.0,'dir': 'less', 'msg': "Left Elbow Max Flex"}, 
+    'l_arm.shoulder.pitch': {'limit': -85.0, 'dir': 'less', 'msg': "left shoulder is raised way too high"}, 
+    'l_arm.shoulder.roll_out': {'limit': 70.0,  'dir': 'greater', 'msg': "left arm is stretched all the way out"}, 
+    'l_arm.elbow.pitch':       {'limit': -128.0,'dir': 'less', 'msg': "left elbow is tucked all the way in"}, 
 }
 
 BUFFER_WARN = 10.0   
@@ -114,9 +112,16 @@ class SafetyMonitor:
         current_time = time.time()
         if (current_time - self.last_spoken_time) > self.cooldown:
             self.last_spoken_time = current_time
-            prefix = "Danger." if level == 3 else "Warning."
-            full_msg = f"{prefix} {msg}"
             
-            print(f"[Safety Monitor] {full_msg}")
-            # Wrap the speak callback in a thread so it doesn't pause the monitoring loop
+            # --- EMBODIED SCRIPT OVERRIDE ---
+            if level == 3: # DANGER / CRITICAL PHASE
+                # Using the exact script for exceeding limits
+                full_msg = f"Stop! I can't go any further. Please, pull my {msg} back!"
+            elif level == 2: # WARNING / APPROACHING LIMIT
+                # Using the exact script for approaching limits
+                full_msg = f"Oof... I'm really stretching here. My {msg} is starting to feel a lot of pressure."
+            else:
+                full_msg = f"Careful, my {msg} feels a bit tight."
+            
+            print(f"[Safety Monitor - Embodied] {full_msg}")
             threading.Thread(target=self.speak_callback, args=(full_msg,), daemon=True).start()

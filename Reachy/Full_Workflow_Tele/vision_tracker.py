@@ -8,7 +8,7 @@ class VisionTracker:
             "Orange": {"lower": np.array([5, 50, 150]), "upper": np.array([22, 255, 255])},
             "Light_Blue": {"lower": np.array([80, 40, 150]), "upper": np.array([110, 255, 255])},
             "Green": {"lower": np.array([35, 40, 150]), "upper": np.array([80, 255, 255])},
-            "Brown_Wood": {"lower": np.array([10, 40, 100]), "upper": np.array([25, 200, 255])}
+            # "Brown_Wood": {"lower": np.array([10, 40, 100]), "upper": np.array([25, 200, 255])}
         }
         
         self.color_bgr = {

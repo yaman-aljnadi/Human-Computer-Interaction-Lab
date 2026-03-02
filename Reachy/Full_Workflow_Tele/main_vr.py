@@ -31,8 +31,12 @@ class ReachyControllerVR:
         
         # --- INIT REALTIME BRAIN ---
         # embodied
-        self.brain = RealtimeBrain(self.get_camera_frame, condition="embodied")
+        self.brain = RealtimeBrain(self.get_camera_data, condition="embodied")
         self.brain_loop = asyncio.new_event_loop()
+        
+        self.active_connection = None
+        self.last_interaction_time = time.time()
+
         
         # OpenVR Setup (Kept the same)
         self.vrsystem = None
@@ -48,8 +52,17 @@ class ReachyControllerVR:
         return self.robot.get_frame()
 
     def speak_system(self, text):
-        """Keep this for quick local safety warnings if desired."""
+        """Routes safety warnings directly to Reachy's mouth via OpenAI."""
         print(f"[System Override]: {text}")
+        
+        # We explicitly tell the LLM to use the exact body part description
+        instruction = f"Your body just felt this: '{text}'. Tell the user this naturally in first-person, making sure to explicitly name the body part (e.g., 'Oh! My {text}!'). Do not read the raw numbers."
+        
+        if hasattr(self, 'brain') and self.brain.is_connected:
+            asyncio.run_coroutine_threadsafe(
+                self.brain.inject_proactive_thought(instruction), 
+                self.brain_loop
+            )
 
     def start_realtime_thread(self):
         """Runs the Async WebSocket in a separate thread."""
@@ -63,10 +76,11 @@ class ReachyControllerVR:
         """Callback for the brain to grab the VR view AND the CV report."""
         head_frame = self.robot.get_frame()
         
-        # Package the tracker data into a string
+        # Package the tracker data into a string using only existing attributes
         report = f"Sorting Status: {self.vision_tracker.latest_status}\n"
         report += f"Block Counts: {self.vision_tracker.block_counts}\n"
-        report += "Detected Items:\n" + "\n".join(self.vision_tracker.detected_objects_report)
+        
+        # Removed the 'detected_objects_report' line that was causing the crash
         
         return head_frame, report
 
@@ -156,6 +170,42 @@ class ReachyControllerVR:
                 self.brain.stop()
 
         cv2.destroyAllWindows()
+
+
+    async def proactive_engagement_loop(self):
+        """Runs in the background and periodically pushes Reachy to engage."""
+        start_time = time.time()
+        last_status = ""
+        check_in_done = False
+        
+        while self.running:
+            await asyncio.sleep(5) # Check every 5 seconds
+            
+            if not self.brain.is_connected or not hasattr(self.brain, 'active_connection'):
+                continue
+                
+            elapsed_minutes = (time.time() - start_time) / 60.0
+            conn = self.brain.active_connection # You'll need to store 'conn' as an attribute in realtime_brain.py
+            
+            # Scenario 1: The 6-Minute Social Check-in (From Script)
+            if elapsed_minutes >= 6.0 and not check_in_done:
+                check_in_done = True
+                await self.brain.inject_proactive_thought(conn, "It has been 6 minutes. Execute your Social Check-in script: 'Hey, you still with me? Just checking since it's been a little quiet. What should we grab next?'")
+                continue
+                
+            # Scenario 2: CV Status Change
+            current_status = self.vision_tracker.latest_status
+            if current_status != last_status and "Waiting" not in current_status:
+                last_status = current_status
+                
+                # If they successfully sorted a pile
+                if "All blocks are sorted" in current_status:
+                    await self.brain.inject_proactive_thought(conn, "The table sensors indicate the blocks are fully sorted! Celebrate excitedly with the user and ask if they are ready to build a tower.")
+                
+                # If they mixed up piles
+                elif "mixed" in current_status:
+                    await self.brain.inject_proactive_thought(conn, f"The table sensors guess that {current_status}. Playfully mention that things look a bit messy and ask if they need help separating them.")
+
 
 if __name__ == '__main__':
     controller = ReachyControllerVR()

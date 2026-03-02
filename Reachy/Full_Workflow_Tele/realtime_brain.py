@@ -6,6 +6,7 @@ import cv2
 import audioop 
 from openai import AsyncOpenAI
 import config
+import time
 
 class RealtimeBrain:
     def __init__(self, get_frame_callback, condition="embodied"):
@@ -84,6 +85,9 @@ class RealtimeBrain:
         async with self.client.realtime.connect(model=config.OPENAI_REALTIME_MODEL) as conn:
             print("[Realtime] Connected!")
             
+            self.active_connection = conn
+            asyncio.create_task(self._silence_monitor_task())
+
             await conn.session.update(session={
                 "type": "realtime",
                 "instructions": self.system_prompt,
@@ -126,6 +130,8 @@ class RealtimeBrain:
                 if event.type == "input_audio_buffer.speech_started":
                     print("\n[OpenAI] Detected you are speaking. Interrupted!")
                     
+                    self.last_interaction_time = time.time()
+
                     # --- MODIFICATION START ---
                     # 1. Clear the pending audio queue instantly when the user speaks
                     while not self.audio_out_queue.empty():
@@ -144,6 +150,7 @@ class RealtimeBrain:
                 # UPDATED: Handle both beta and GA transcript event names
                 elif event.type in ("response.audio_transcript.done", "response.output_audio_transcript.done"):
                     print(f"[Reachy] {event.transcript}")
+                    self.last_interaction_time = time.time()
                     
                 elif event.type == "error":
                     err = getattr(event, "error", None)
@@ -163,12 +170,13 @@ class RealtimeBrain:
                     if getattr(event, "name", "") == "see_environment":
                         print("\n[Realtime] Tool triggered: Looking around...")
                         
-                        frame = self.get_frame_callback()
+                        # Grab BOTH the frame and the OpenCV text report
+                        frame, cv_report = self.get_frame_callback()
                         
                         await conn.conversation.item.create(item={
                             "type": "function_call_output",
                             "call_id": event.call_id,
-                            "output": json.dumps({"status": "image captured"})
+                            "output": json.dumps({"status": "image captured and CV data retrieved"})
                         })
 
                         if frame is not None:
@@ -176,32 +184,30 @@ class RealtimeBrain:
                             _, buffer = cv2.imencode('.jpg', rgb_frame)
                             b64_im = base64.b64encode(buffer).decode('utf-8')
 
-                            await conn.conversation.item.create(
-                                item={
-                                    "type": "message",
-                                    "role": "user",
-                                    "content": [
-                                        {
-                                            "type": "input_image",
-                                            "image_url": f"data:image/jpeg;base64,{b64_im}",
-                                        },
-                                    ],
+                            # Combine the image with a system prompt guiding how to use the noisy CV data
+                            content_payload = [
+                                {
+                                    "type": "input_text", 
+                                    "text": f"SYSTEM NOTE: Here is what your internal OpenCV sensors are guessing: \n{cv_report}\n\nWARNING: This sensor is noisy and often mislabels colors or overlaps. Use this data as a general 'hunch', remember your 'Virtual Blindness', and respond naturally to the user."
+                                },
+                                {
+                                    "type": "input_image",
+                                    "image_url": f"data:image/jpeg;base64,{b64_im}",
                                 }
-                            )
-                            print("[Realtime] Image sent to OpenAI.")
-                        else:
-                            print("[Realtime] Camera failed. Sending error message.")
-                            await conn.conversation.item.create(
-                                item={
-                                    "type": "message",
-                                    "role": "user",
-                                    "content": [{"type": "input_text", "text": "Camera malfunctioned. Tell the user you cannot see."}],
-                                }
-                            )
+                            ]
 
+                            await conn.conversation.item.create(
+                                item={
+                                    "type": "message",
+                                    "role": "user",
+                                    "content": content_payload,
+                                }
+                            )
+                            print("[Realtime] Image and CV Context sent to OpenAI.")
+                        
                         await conn.response.create(
                             response={
-                                "instructions": "Answer concisely in speech about what you just saw.",
+                                "instructions": "Answer conversationally about what you just saw or sensed.",
                             }
                         )
 
@@ -212,6 +218,33 @@ class RealtimeBrain:
             self.speaker_stream.close()
         self.pyaudio_instance.terminate()
 
+
+    async def inject_proactive_thought(self, text_instruction):
+        """Silently injects a system thought and forces Reachy to speak."""
+        if not self.is_connected or not self.active_connection:
+            return
+            
+        print(f"[Realtime] Injecting thought: {text_instruction}")
+        
+        await self.active_connection.conversation.item.create(
+            item={
+                "type": "message",
+                "role": "user",
+                "content": [{"type": "input_text", "text": f"SYSTEM PROMPT (Do not say this out loud, just act on it): {text_instruction}"}],
+            }
+        )
+        await self.active_connection.response.create()
+
+    async def _silence_monitor_task(self):
+        """Runs in the background and triggers Reachy if there is 2 minutes of silence."""
+        while self.is_connected:
+            await asyncio.sleep(5) 
+            
+            if time.time() - self.last_interaction_time > 60:
+                # UPDATED: Emphasize the follower role in the background injection
+                await self.inject_proactive_thought("It has been quiet for a couple of minutes. Joyfully check in with the user and ask how the task is going. Do NOT suggest a next step.")
+                
+                self.last_interaction_time = time.time()
 
     async def _audio_output_task(self):
             """Pulls audio from the queue and plays it without blocking the main loop."""
@@ -227,3 +260,4 @@ class RealtimeBrain:
                     break
                 except Exception as e:
                     print(f"[Audio Output Error] {e}")
+

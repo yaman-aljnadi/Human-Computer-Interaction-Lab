@@ -57,7 +57,7 @@ def detect_and_check_sorting(image_path):
         "Orange": {"lower": np.array([8, 100, 150]), "upper": np.array([18, 255, 255])},
         "Light_Blue": {"lower": np.array([80, 20, 200]), "upper": np.array([100, 100, 255])},
         "Green": {"lower": np.array([25, 30, 200]), "upper": np.array([45, 120, 255])},
-        "Brown_Wood": {"lower": np.array([15, 20, 150]), "upper": np.array([25, 100, 255])}
+        # "Brown_Wood": {"lower": np.array([15, 20, 150]), "upper": np.array([25, 100, 255])}
     }
 
     block_contours_by_color = {"Orange": [], "Light_Blue": [], "Green": [], "Brown_Wood": []}
