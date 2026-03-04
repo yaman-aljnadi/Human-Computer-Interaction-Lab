@@ -13,6 +13,8 @@ class RealtimeBrain:
         self.get_frame_callback = get_frame_callback
         self.client = AsyncOpenAI(api_key=config.OPENAI_API_KEY)
         
+        self.last_interaction_time = time.time()
+
         self.audio_format = pyaudio.paInt16
         self.channels = 1
         
