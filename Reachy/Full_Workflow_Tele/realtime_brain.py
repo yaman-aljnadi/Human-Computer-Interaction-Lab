@@ -9,9 +9,10 @@ import config
 import time
 
 class RealtimeBrain:
-    def __init__(self, get_frame_callback, condition="embodied"):
+    def __init__(self, get_frame_callback, get_mute_state_callback, condition="embodied"):
         self.get_frame_callback = get_frame_callback
         self.client = AsyncOpenAI(api_key=config.OPENAI_API_KEY)
+        self.get_mute_state_callback = get_mute_state_callback
         
         self.last_interaction_time = time.time()
 
@@ -61,10 +62,13 @@ class RealtimeBrain:
                 data_24k, audio_state = audioop.ratecv(
                     data, 2, self.channels, self.native_rate, self.openai_rate, audio_state
                 )
+
+                if not self.get_mute_state_callback():
+                    audio_b64 = base64.b64encode(data_24k).decode("utf-8")
+                    await connection.input_audio_buffer.append(audio=audio_b64)
                 
-                audio_b64 = base64.b64encode(data_24k).decode("utf-8")
-                await connection.input_audio_buffer.append(audio=audio_b64)
                 await asyncio.sleep(0.001)
+        
         except asyncio.CancelledError:
             pass
         finally:

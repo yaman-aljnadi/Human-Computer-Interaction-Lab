@@ -27,17 +27,24 @@ class ReachyControllerVR:
         self.is_muted = False
         self.conversation_mode = True
 
+        # Wizard of Oz
+        self.experiment_started = False
+        self.mic_muted = True # Start fully muted
+        self.current_task = 0
+        self.task_start_time = 0
+        self.task_timer_active = False
+
         self.safety_monitor = SafetyMonitor(self.robot, self.speak_system)
         
         # --- INIT REALTIME BRAIN ---
         # embodied
-        self.brain = RealtimeBrain(self.get_camera_data, condition="embodied")
+        self.brain = RealtimeBrain(self.get_camera_data, self.is_mic_muted, condition="embodied")
         self.brain_loop = asyncio.new_event_loop()
         
         self.active_connection = None
         self.last_interaction_time = time.time()
 
-        
+
         # OpenVR Setup (Kept the same)
         self.vrsystem = None
         self.right_controller_id, self.left_controller_id = None, None
@@ -93,7 +100,9 @@ class ReachyControllerVR:
         # Keep the display and VR inputs on the main thread
         self.display_loop()
 
-
+    def is_mic_muted(self):
+        """Callback for the brain to check if it should send audio."""
+        return self.mic_muted
     
     def check_vr_button_state(self):
         """Checks controller state and prints raw debug info."""
@@ -142,70 +151,114 @@ class ReachyControllerVR:
 
     def display_loop(self):
         print("Display Active. Press 'q' to quit.")
+        print("WoZ Controls: 's'=Start/Unmute, '1-4'=Tasks, 'm'=Mute")
         
         while self.running:
             self.check_vr_button_state() 
-
-            # Get the head camera for VR viewing (and OpenAI)
             head_frame = self.robot.get_frame()
-            
-            # --- NEW: Get the 3D Torso Camera frames ---
             torso_rgb, torso_depth = self.robot.get_torso_rgbd()
 
-            # Process the torso vision if available
             if torso_rgb is not None and torso_depth is not None:
-                # We now pass BOTH frames into the tracker
                 processed_frame = self.vision_tracker.process_frame(torso_rgb, torso_depth)
-                
-                # Show the tracking on the torso camera feed
                 cv2.imshow("Reachy Depth Tracking", processed_frame)
                 
-            # Keep showing the raw head camera for the VR headset
             if head_frame is not None:
                 cv2.imshow("Reachy VR Vision", head_frame)
 
-            key = cv2.waitKey(1)
+            key = cv2.waitKey(1) & 0xFF
+            
             if key == ord('q'):
                 self.running = False
                 self.brain.stop()
+            elif key == ord('s'):
+                if not self.experiment_started:
+                    print("\n[WoZ] 'S' Pressed: Experiment Started! Mic Unmuted.")
+                    self.experiment_started = True
+                    self.mic_muted = False
+            elif key == ord('m'):
+                self.mic_muted = not self.mic_muted
+                status = "MUTED" if self.mic_muted else "UNMUTED"
+                print(f"\n[WoZ] 'M' Pressed: Microphone is now {status}")
+            elif key == ord('1') and self.experiment_started:
+                self.start_task(1)
+            elif key == ord('2') and self.experiment_started:
+                self.start_task(2)
+            elif key == ord('3') and self.experiment_started:
+                self.start_task(3)
+            elif key == ord('4') and self.experiment_started:
+                self.start_task(4)
 
         cv2.destroyAllWindows()
 
+    def start_task(self, task_num):
+        """WoZ helper to switch tasks and reset timers."""
+        print(f"\n[WoZ] Starting Task {task_num}...")
+        self.current_task = task_num
+        self.task_start_time = time.time()
+        self.task_timer_active = True
+        
+        # Inject the start prompt to Reachy
+        if task_num == 1:
+            asyncio.run_coroutine_threadsafe(
+                self.brain.inject_proactive_thought("We are starting Task 1. Deliver your exact Task 1 Start script now."), 
+                self.brain_loop
+            )
+        elif task_num == 2:
+            asyncio.run_coroutine_threadsafe(
+                self.brain.inject_proactive_thought("We are starting Task 2. Deliver your exact Task 2 Start script now."), 
+                self.brain_loop
+            )
+        elif task_num == 4:
+            asyncio.run_coroutine_threadsafe(
+                self.brain.inject_proactive_thought("We are starting Task 4. Introduce the social sorting task and ask the user to pick up a block so you can tell them where it goes."), 
+                self.brain_loop
+            )
+
 
     async def proactive_engagement_loop(self):
-        """Runs in the background and periodically pushes Reachy to engage."""
-        start_time = time.time()
-        last_status = ""
-        check_in_done = False
+        """Runs in the background and periodically pushes Reachy to engage based on Task timers."""
+        
+        # Track which milestones have been hit so we don't repeat them
+        milestones = {"t1_230": False, "t1_500": False, "t1_730": False, "t1_1000": False,
+                      "t2_100": False, "t2_200": False}
         
         while self.running:
-            await asyncio.sleep(5) # Check every 5 seconds
+            await asyncio.sleep(1) # Check every second
             
-            if not self.brain.is_connected or not hasattr(self.brain, 'active_connection'):
+            if not self.brain.is_connected or not self.task_timer_active:
                 continue
                 
-            elapsed_minutes = (time.time() - start_time) / 60.0
-            conn = self.brain.active_connection # You'll need to store 'conn' as an attribute in realtime_brain.py
+            elapsed_seconds = time.time() - self.task_start_time
             
-            # Scenario 1: The 6-Minute Social Check-in (From Script)
-            if elapsed_minutes >= 6.0 and not check_in_done:
-                check_in_done = True
-                await self.brain.inject_proactive_thought(conn, "It has been 6 minutes. Execute your Social Check-in script: 'Hey, you still with me? Just checking since it's been a little quiet. What should we grab next?'")
-                continue
+            # --- TASK 1 TIMERS (10 Minutes) ---
+            if self.current_task == 1:
+                if elapsed_seconds >= 150 and not milestones["t1_230"]:
+                    milestones["t1_230"] = True
+                    await self.brain.inject_proactive_thought("2 minutes and 30 seconds have passed. Deliver your exact '2:30 mark' script for Task 1.")
                 
-            # Scenario 2: CV Status Change
-            current_status = self.vision_tracker.latest_status
-            if current_status != last_status and "Waiting" not in current_status:
-                last_status = current_status
+                elif elapsed_seconds >= 300 and not milestones["t1_500"]:
+                    milestones["t1_500"] = True
+                    await self.brain.inject_proactive_thought("5 minutes have passed. Deliver your exact '5:00 mark' script for Task 1.")
                 
-                # If they successfully sorted a pile
-                if "All blocks are sorted" in current_status:
-                    await self.brain.inject_proactive_thought(conn, "The table sensors indicate the blocks are fully sorted! Celebrate excitedly with the user and ask if they are ready to build a tower.")
+                elif elapsed_seconds >= 450 and not milestones["t1_730"]:
+                    milestones["t1_730"] = True
+                    await self.brain.inject_proactive_thought("7 minutes and 30 seconds have passed. Deliver your exact '7:30 mark' script for Task 1.")
                 
-                # If they mixed up piles
-                elif "mixed" in current_status:
-                    await self.brain.inject_proactive_thought(conn, f"The table sensors guess that {current_status}. Playfully mention that things look a bit messy and ask if they need help separating them.")
+                elif elapsed_seconds >= 600 and not milestones["t1_1000"]:
+                    milestones["t1_1000"] = True
+                    self.task_timer_active = False # End timer
+                    await self.brain.inject_proactive_thought("10 minutes have passed. Deliver your exact '10:00 mark' completion script for Task 1.")
 
+            # --- TASK 2 TIMERS (2 Minutes) ---
+            elif self.current_task == 2:
+                if elapsed_seconds >= 60 and not milestones["t2_100"]:
+                    milestones["t2_100"] = True
+                    await self.brain.inject_proactive_thought("1 minute has passed. Deliver your exact '1:00 mark' script for Task 2.")
+                
+                elif elapsed_seconds >= 120 and not milestones["t2_200"]:
+                    milestones["t2_200"] = True
+                    self.task_timer_active = False # End timer
+                    await self.brain.inject_proactive_thought("2 minutes have passed. Deliver your exact '2:00 mark' completion script for Task 2.")
 
 if __name__ == '__main__':
     controller = ReachyControllerVR()
