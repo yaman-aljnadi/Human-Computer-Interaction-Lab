@@ -19,6 +19,7 @@ class ReachyControllerVR:
         self.robot = ReachyRobotVR()
         self.vision_tracker = VisionTracker()
         
+        # Failed Unity Connection Attempt 
         self.udp_ip = "127.0.0.1"
         self.udp_port = 5006
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -33,6 +34,11 @@ class ReachyControllerVR:
         self.current_task = 0
         self.task_start_time = 0
         self.task_timer_active = False
+        # Track milestones at the class level
+        self.milestones = {
+            "t1_230": False, "t1_500": False, "t1_730": False, "t1_1000": False,
+            "t2_100": False, "t2_200": False
+        }
 
         self.safety_monitor = SafetyMonitor(self.robot, self.speak_system)
         
@@ -61,20 +67,21 @@ class ReachyControllerVR:
     def speak_system(self, text):
         """Routes safety warnings directly to Reachy's mouth via OpenAI."""
         print(f"[System Override]: {text}")
-        
-        # We explicitly tell the LLM to use the exact body part description
         instruction = f"Your body just felt this: '{text}'. Tell the user this naturally in first-person, making sure to explicitly name the body part (e.g., 'Oh! My {text}!'). Do not read the raw numbers."
         
         if hasattr(self, 'brain') and self.brain.is_connected:
             asyncio.run_coroutine_threadsafe(
-                self.brain.inject_proactive_thought(instruction), 
+                self.brain.inject_proactive_thought(instruction, uninterruptible=True), 
                 self.brain_loop
             )
 
     def start_realtime_thread(self):
-        """Runs the Async WebSocket in a separate thread."""
         asyncio.set_event_loop(self.brain_loop)
         try:
+            # NEW: Schedule the timer loop in the background
+            self.brain_loop.create_task(self.proactive_engagement_loop())
+            
+            # Start the realtime brain session
             self.brain_loop.run_until_complete(self.brain.start_session())
         except Exception as e:
             print(f"Realtime loop ended: {e}")
@@ -197,17 +204,24 @@ class ReachyControllerVR:
         self.task_start_time = time.time()
         self.task_timer_active = True
         
+        self.milestones = {k: False for k in self.milestones}
+
         # Inject the start prompt to Reachy
         if task_num == 1:
             asyncio.run_coroutine_threadsafe(
-                self.brain.inject_proactive_thought("We are starting Task 1. Deliver your exact Task 1 Start script now."), 
+                self.brain.inject_proactive_thought("We are starting Task 1. Deliver your exact Task 1 Start script now.", uninterruptible=True), 
                 self.brain_loop
             )
         elif task_num == 2:
             asyncio.run_coroutine_threadsafe(
-                self.brain.inject_proactive_thought("We are starting Task 2. Deliver your exact Task 2 Start script now."), 
+                self.brain.inject_proactive_thought("We are starting Task 2. Deliver your exact Task 2 Start script now.", uninterruptible=True), 
                 self.brain_loop
             )
+
+        elif task_num == 3:
+            #Blank For Now
+            pass
+
         elif task_num == 4:
             asyncio.run_coroutine_threadsafe(
                 self.brain.inject_proactive_thought("We are starting Task 4. Introduce the social sorting task and ask the user to pick up a block so you can tell them where it goes."), 
@@ -217,10 +231,6 @@ class ReachyControllerVR:
 
     async def proactive_engagement_loop(self):
         """Runs in the background and periodically pushes Reachy to engage based on Task timers."""
-        
-        # Track which milestones have been hit so we don't repeat them
-        milestones = {"t1_230": False, "t1_500": False, "t1_730": False, "t1_1000": False,
-                      "t2_100": False, "t2_200": False}
         
         while self.running:
             await asyncio.sleep(1) # Check every second
@@ -232,33 +242,33 @@ class ReachyControllerVR:
             
             # --- TASK 1 TIMERS (10 Minutes) ---
             if self.current_task == 1:
-                if elapsed_seconds >= 150 and not milestones["t1_230"]:
-                    milestones["t1_230"] = True
-                    await self.brain.inject_proactive_thought("2 minutes and 30 seconds have passed. Deliver your exact '2:30 mark' script for Task 1.")
+                if elapsed_seconds >= 150 and not self.milestones["t1_230"]:
+                    self.milestones["t1_230"] = True
+                    await self.brain.inject_proactive_thought("2 minutes and 30 seconds have passed. Deliver your exact '2:30 mark' script for Task 1.", uninterruptible=True)
                 
-                elif elapsed_seconds >= 300 and not milestones["t1_500"]:
-                    milestones["t1_500"] = True
-                    await self.brain.inject_proactive_thought("5 minutes have passed. Deliver your exact '5:00 mark' script for Task 1.")
+                elif elapsed_seconds >= 300 and not self.milestones["t1_500"]:
+                    self.milestones["t1_500"] = True
+                    await self.brain.inject_proactive_thought("5 minutes have passed. Deliver your exact '5:00 mark' script for Task 1.", uninterruptible=True)
                 
-                elif elapsed_seconds >= 450 and not milestones["t1_730"]:
-                    milestones["t1_730"] = True
-                    await self.brain.inject_proactive_thought("7 minutes and 30 seconds have passed. Deliver your exact '7:30 mark' script for Task 1.")
+                elif elapsed_seconds >= 450 and not self.milestones["t1_730"]:
+                    self.milestones["t1_730"] = True
+                    await self.brain.inject_proactive_thought("7 minutes and 30 seconds have passed. Deliver your exact '7:30 mark' script for Task 1.", uninterruptible=True)
                 
-                elif elapsed_seconds >= 600 and not milestones["t1_1000"]:
-                    milestones["t1_1000"] = True
+                elif elapsed_seconds >= 600 and not self.milestones["t1_1000"]:
+                    self.milestones["t1_1000"] = True
                     self.task_timer_active = False # End timer
-                    await self.brain.inject_proactive_thought("10 minutes have passed. Deliver your exact '10:00 mark' completion script for Task 1.")
+                    await self.brain.inject_proactive_thought("10 minutes have passed. Deliver your exact '10:00 mark' completion script for Task 1.", uninterruptible=True)
 
             # --- TASK 2 TIMERS (2 Minutes) ---
             elif self.current_task == 2:
-                if elapsed_seconds >= 60 and not milestones["t2_100"]:
-                    milestones["t2_100"] = True
-                    await self.brain.inject_proactive_thought("1 minute has passed. Deliver your exact '1:00 mark' script for Task 2.")
+                if elapsed_seconds >= 60 and not self.milestones["t2_100"]:
+                    self.milestones["t2_100"] = True
+                    await self.brain.inject_proactive_thought("1 minute has passed. Deliver your exact '1:00 mark' script for Task 2.", uninterruptible=True)
                 
-                elif elapsed_seconds >= 120 and not milestones["t2_200"]:
-                    milestones["t2_200"] = True
+                elif elapsed_seconds >= 120 and not self.milestones["t2_200"]:
+                    self.milestones["t2_200"] = True
                     self.task_timer_active = False # End timer
-                    await self.brain.inject_proactive_thought("2 minutes have passed. Deliver your exact '2:00 mark' completion script for Task 2.")
+                    await self.brain.inject_proactive_thought("2 minutes have passed. Deliver your exact '2:00 mark' completion script for Task 2.", uninterruptible=True)
 
 if __name__ == '__main__':
     controller = ReachyControllerVR()

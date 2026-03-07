@@ -28,6 +28,7 @@ class RealtimeBrain:
         self.mic_stream = None
         self.speaker_stream = None
         self.is_connected = False
+        self.uninterruptible_active = False
 
         self.audio_out_queue = asyncio.Queue()
 
@@ -63,7 +64,7 @@ class RealtimeBrain:
                     data, 2, self.channels, self.native_rate, self.openai_rate, audio_state
                 )
 
-                if not self.get_mute_state_callback():
+                if not self.get_mute_state_callback() and not self.uninterruptible_active:
                     audio_b64 = base64.b64encode(data_24k).decode("utf-8")
                     await connection.input_audio_buffer.append(audio=audio_b64)
                 
@@ -75,6 +76,21 @@ class RealtimeBrain:
             if self.mic_stream:
                 self.mic_stream.stop_stream()
                 self.mic_stream.close()
+
+
+
+    async def _wait_for_playback_to_finish_then_unmute(self):
+        """Waits for the local audio queue to drain before re-enabling the microphone."""
+        await asyncio.sleep(0.5) # Give the final audio chunks a moment to enter the queue
+        
+        # Wait until the queue is completely empty
+        while not self.audio_out_queue.empty():
+            await asyncio.sleep(0.1)
+            
+        await asyncio.sleep(0.5) # Buffer to ensure the physical speaker has stopped echoing
+        self.uninterruptible_active = False
+        print("[Realtime] Critical speech finished. Mic reopened for interruption.")
+
 
     async def start_session(self):
         self.is_connected = True
@@ -163,6 +179,11 @@ class RealtimeBrain:
                     msg = getattr(err, "message", str(err) if err else "unknown error")
                     print(f"[OpenAI ERROR] {msg}")
 
+                elif event.type == "response.done":
+                    if self.uninterruptible_active:
+                        # The server finished generating. Now wait for the local speakers to finish playing.
+                        asyncio.create_task(self._wait_for_playback_to_finish_then_unmute())
+
                 # UPDATED: Handle both beta and GA audio delta event names
                 elif event.type in ("response.audio.delta", "response.output_audio.delta"):
                     if self.speaker_stream:
@@ -225,13 +246,24 @@ class RealtimeBrain:
         self.pyaudio_instance.terminate()
 
 
-    async def inject_proactive_thought(self, text_instruction):
+    async def inject_proactive_thought(self, text_instruction, uninterruptible=False):
         """Silently injects a system thought and forces Reachy to speak."""
         if not self.is_connected or not self.active_connection:
             return
             
-        print(f"[Realtime] Injecting thought: {text_instruction}")
+        print(f"[Realtime] Injecting thought: {text_instruction} (Uninterruptible: {uninterruptible})")
         
+        # --- NEW UNINTERRUPTIBLE LOGIC ---
+        if uninterruptible:
+            self.uninterruptible_active = True
+            
+            # Clear the local audio queue so the warning takes immediate priority
+            while not self.audio_out_queue.empty():
+                try:
+                    self.audio_out_queue.get_nowait()
+                except asyncio.QueueEmpty:
+                    break
+                    
         await self.active_connection.conversation.item.create(
             item={
                 "type": "message",
@@ -246,7 +278,7 @@ class RealtimeBrain:
         while self.is_connected:
             await asyncio.sleep(5) 
             
-            if time.time() - self.last_interaction_time > 60:
+            if time.time() - self.last_interaction_time > 180:
                 # UPDATED: Emphasize the follower role in the background injection
                 await self.inject_proactive_thought("It has been quiet for a couple of minutes. Joyfully check in with the user and ask how the task is going. Do NOT suggest a next step.")
                 

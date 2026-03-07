@@ -37,7 +37,7 @@ class VisionTracker:
         if depth_frame is not None and np.max(depth_frame) > 0:
             depth_colormap = cv2.normalize(depth_frame, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
             depth_colormap = cv2.applyColorMap(depth_colormap, cv2.COLORMAP_JET)
-            cv2.imshow("Raw Depth Heatmap", depth_colormap)
+            # cv2.imshow("Raw Depth Heatmap", depth_colormap)
 
         # =======================================================
         # PHASE 1 & 2: DETECT BLOCKS BY COLOR
