@@ -1,20 +1,19 @@
 import time
 import threading
+import config  # <-- NEW: Import config to check condition
 
 # --- CONFIGURATION ---
 LIMITS_CONFIG = {
     # RIGHT ARM
-    'r_arm.shoulder.pitch': {'limit': -52.0, 'dir': 'less', 'msg': "right shoulder is raised way too high", 'buffer_warn': 10.0, 'buffer_caut': 20.0}, 
-    'r_arm.shoulder.roll_out': {'limit': -70.0, 'dir': 'less', 'msg': "right arm is stretched all the way out", 'buffer_warn': 15.0, 'buffer_caut': 25.0}, 
-    'r_arm.elbow.pitch':       {'limit': -125.0,'dir': 'less', 'msg': "right elbow is tucked all the way in", 'buffer_warn': 8.0, 'buffer_caut': 15.0}, 
+    'r_arm.shoulder.pitch': {'limit': -52.0, 'dir': 'less', 'msg': "right shoulder is raised way too high", 'sys_name': "right shoulder pitch", 'buffer_warn': 10.0, 'buffer_caut': 20.0}, 
+    'r_arm.shoulder.roll_out': {'limit': -70.0, 'dir': 'less', 'msg': "right arm is stretched all the way out", 'sys_name': "right shoulder roll", 'buffer_warn': 15.0, 'buffer_caut': 25.0}, 
+    'r_arm.elbow.pitch':       {'limit': -125.0,'dir': 'less', 'msg': "right elbow is tucked all the way in", 'sys_name': "right elbow pitch", 'buffer_warn': 8.0, 'buffer_caut': 15.0}, 
 
     # LEFT ARM
-    'l_arm.shoulder.pitch': {'limit': -52.0, 'dir': 'less', 'msg': "left shoulder is raised way too high", 'buffer_warn': 10.0, 'buffer_caut': 20.0}, 
-    'l_arm.shoulder.roll_out': {'limit': 70.0,  'dir': 'greater', 'msg': "left arm is stretched all the way out", 'buffer_warn': 15.0, 'buffer_caut': 25.0}, 
-    'l_arm.elbow.pitch':       {'limit': -128.0,'dir': 'less', 'msg': "left elbow is tucked all the way in", 'buffer_warn': 8.0, 'buffer_caut': 15.0}, 
+    'l_arm.shoulder.pitch': {'limit': -52.0, 'dir': 'less', 'msg': "left shoulder is raised way too high", 'sys_name': "left shoulder pitch", 'buffer_warn': 10.0, 'buffer_caut': 20.0}, 
+    'l_arm.shoulder.roll_out': {'limit': 70.0,  'dir': 'greater', 'msg': "left arm is stretched all the way out", 'sys_name': "left shoulder roll", 'buffer_warn': 15.0, 'buffer_caut': 25.0}, 
+    'l_arm.elbow.pitch':       {'limit': -128.0,'dir': 'less', 'msg': "left elbow is tucked all the way in", 'sys_name': "left elbow pitch", 'buffer_warn': 8.0, 'buffer_caut': 15.0}, 
 }
-
-
 
 # --- NEW: VELOCITY CONFIGURATION ---
 SPEED_LIMIT_DEG_PER_SEC = 70  # You will need to calibrate this number!
@@ -88,43 +87,40 @@ class SafetyMonitor:
             speed_warning_triggered = False
             fastest_joint_name = ""
 
-            for key, config in LIMITS_CONFIG.items():
+            # UPDATED: Renamed local 'config' to 'limit_cfg' to avoid shadowing imported module
+            for key, limit_cfg in LIMITS_CONFIG.items():
                 if key not in joints:
                     continue
                     
                 val = joints[key]
                 
-                # 1. POSITION CHECK (Your existing logic)
-                level, color, _ = get_safety_status(val, config['limit'], config['dir'], config['buffer_warn'], config['buffer_caut'])
+                # 1. POSITION CHECK
+                level, color, _ = get_safety_status(val, limit_cfg['limit'], limit_cfg['dir'], limit_cfg['buffer_warn'], limit_cfg['buffer_caut'])
                 if level > 0:
-                    status_text = f"{config['msg']} ({val:.1f})"
-                    messages.append((level, status_text, color))
+                    status_text = f"{limit_cfg['msg']} ({val:.1f})"
+                    # Store the key so we can fetch 'sys_name' later for the Co-Pilot
+                    messages.append((level, status_text, color, key))
                     if level > highest:
                         highest = level
 
-                # 2. VELOCITY CHECK (New logic)
+                # 2. VELOCITY CHECK
                 if key in self.last_joint_states:
                     last_val, last_time = self.last_joint_states[key]
                     dt = current_time - last_time
                     
-                    # Prevent division by zero if loop runs too fast
                     if dt > 0.01: 
                         speed = abs(val - last_val) / dt
                         
                         if speed > SPEED_LIMIT_DEG_PER_SEC:
                             self.speed_violation_counts[key] += 1
-                            # print(f"[Debug] {key} speed: {speed:.1f} deg/sec")
                         else:
-                            # Reset if they slow down
                             self.speed_violation_counts[key] = 0
                             
-                        # If they exceed the speed limit multiple frames in a row
                         if self.speed_violation_counts[key] >= VIOLATION_THRESHOLD:
                             speed_warning_triggered = True
-                            fastest_joint_name = key.split('.')[0] + " " + key.split('.')[1] # e.g., "r_arm shoulder"
-                            self.speed_violation_counts[key] = 0 # Reset after triggering
+                            fastest_joint_name = key.split('.')[0] + " " + key.split('.')[1]
+                            self.speed_violation_counts[key] = 0 
                 
-                # Update history for next loop
                 self.last_joint_states[key] = (val, current_time)
 
             messages.sort(key=lambda x: x[0], reverse=True)
@@ -133,28 +129,43 @@ class SafetyMonitor:
 
             # 3. TRIGGER AUDIO (Positional limits take priority)
             if highest >= 2:
-                self._trigger_warning(messages[0][1], highest, warning_type="position")
+                self._trigger_warning(messages[0][1], highest, warning_type="position", joint_key=messages[0][3])
             elif speed_warning_triggered:
                 self._trigger_warning(fastest_joint_name, level=2, warning_type="speed")
 
             time.sleep(0.1) 
 
-    def _trigger_warning(self, msg, level, warning_type="position"):
+    def _trigger_warning(self, msg, level, warning_type="position", joint_key=None):
         current_time = time.time()
         if (current_time - self.last_spoken_time) > self.cooldown:
             self.last_spoken_time = current_time
             
-            if warning_type == "speed":
-                # Clean up the joint name for speaking (e.g., "r_arm shoulder" -> "right shoulder")
-                friendly_name = msg.replace("r_arm", "right").replace("l_arm", "left").replace("_", " ")
-                full_msg = f"Whoa, slow down a bit! You're moving my {friendly_name} too fast!"
-            else:
-                if level == 3: 
-                    full_msg = f"Stop! I can't go any further. Please, pull my {msg} back!"
-                elif level == 2: 
-                    full_msg = f"Oof... I'm really stretching here. My {msg} is starting to feel a lot of pressure."
+            # --- NEW: Check condition and route speech accordingly ---
+            if config.EXPERIMENT_CONDITION == "copilot":
+                if warning_type == "speed":
+                    friendly_name = msg.replace("r_arm", "right").replace("l_arm", "left").replace("_", " ")
+                    full_msg = f"Telemetry Alert: Velocity limit exceeded on {friendly_name}. Reduce Operator input speed immediately."
                 else:
-                    full_msg = f"Careful, my {msg} feels a bit tight."
+                    sys_name = LIMITS_CONFIG[joint_key]['sys_name'] if joint_key else "hardware"
+                    if level == 3: 
+                        full_msg = f"Critical Alert: {sys_name} limit reached "
+                    elif level == 2: 
+                        full_msg = f"Warning: {sys_name} is approaching maximum mechanical tolerance."
+                    else:
+                        full_msg = f"Notice: {sys_name} telemetry indicates caution zone."
+                        
+            else: # Embodied condition
+                if warning_type == "speed":
+                    friendly_name = msg.replace("r_arm", "right").replace("l_arm", "left").replace("_", " ")
+                    full_msg = f"Whoa, slow down a bit! You're moving my {friendly_name} too fast!"
+                else:
+                    clean_msg = msg.split(' (')[0] if ' (' in msg else msg
+                    if level == 3: 
+                        full_msg = f"Stop! I can't go any further. Please, pull my {clean_msg} back!"
+                    elif level == 2: 
+                        full_msg = f"Oof... I'm really stretching here. My {clean_msg} is starting to feel a lot of pressure."
+                    else:
+                        full_msg = f"Careful, my {clean_msg} feels a bit tight."
             
-            print(f"[Safety Monitor - Embodied] {full_msg}")
+            print(f"[Safety Monitor - {config.EXPERIMENT_CONDITION.capitalize()}] {full_msg}")
             threading.Thread(target=self.speak_callback, args=(full_msg,), daemon=True).start()

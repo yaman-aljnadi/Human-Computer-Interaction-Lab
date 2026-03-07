@@ -15,7 +15,7 @@ from vision_tracker import VisionTracker
 
 class ReachyControllerVR:
     def __init__(self):
-        print(">>> STARTING VR COMPANION MODE (REALTIME) <<<")
+        print(f">>> STARTING VR COMPANION MODE ({config.EXPERIMENT_CONDITION.upper()}) <<<")
         self.robot = ReachyRobotVR()
         self.vision_tracker = VisionTracker()
         
@@ -43,15 +43,15 @@ class ReachyControllerVR:
         self.safety_monitor = SafetyMonitor(self.robot, self.speak_system)
         
         # --- INIT REALTIME BRAIN ---
-        # embodied
-        self.brain = RealtimeBrain(self.get_camera_data, self.is_mic_muted, condition="embodied")
+        # UPDATED: We removed the hardcoded condition="embodied" because RealtimeBrain 
+        # now handles it internally via config.EXPERIMENT_CONDITION.
+        self.brain = RealtimeBrain(self.get_camera_data, self.is_mic_muted)
         self.brain_loop = asyncio.new_event_loop()
         
         self.active_connection = None
         self.last_interaction_time = time.time()
 
-
-        # OpenVR Setup (Kept the same)
+        # OpenVR Setup 
         self.vrsystem = None
         self.right_controller_id, self.left_controller_id = None, None
         try:
@@ -67,7 +67,12 @@ class ReachyControllerVR:
     def speak_system(self, text):
         """Routes safety warnings directly to Reachy's mouth via OpenAI."""
         print(f"[System Override]: {text}")
-        instruction = f"Your body just felt this: '{text}'. Tell the user this naturally in first-person, making sure to explicitly name the body part (e.g., 'Oh! My {text}!'). Do not read the raw numbers."
+        
+        # --- NEW: Branch the instruction based on condition ---
+        if config.EXPERIMENT_CONDITION == "copilot":
+            instruction = f"System alert triggered: '{text}'. Relay this telemetry data to the Operator strictly and objectively. Do not use personal pronouns."
+        else:
+            instruction = f"Your body just felt this: '{text}'. Tell the user this naturally in first-person, making sure to explicitly name the body part (e.g., 'Oh! My {text}!'). Do not read the raw numbers."
         
         if hasattr(self, 'brain') and self.brain.is_connected:
             asyncio.run_coroutine_threadsafe(
@@ -78,10 +83,7 @@ class ReachyControllerVR:
     def start_realtime_thread(self):
         asyncio.set_event_loop(self.brain_loop)
         try:
-            # NEW: Schedule the timer loop in the background
             self.brain_loop.create_task(self.proactive_engagement_loop())
-            
-            # Start the realtime brain session
             self.brain_loop.run_until_complete(self.brain.start_session())
         except Exception as e:
             print(f"Realtime loop ended: {e}")
@@ -90,21 +92,14 @@ class ReachyControllerVR:
         """Callback for the brain to grab the VR view AND the CV report."""
         head_frame = self.robot.get_frame()
         
-        # Package the tracker data into a string using only existing attributes
         report = f"Sorting Status: {self.vision_tracker.latest_status}\n"
         report += f"Block Counts: {self.vision_tracker.block_counts}\n"
-        
-        # Removed the 'detected_objects_report' line that was causing the crash
         
         return head_frame, report
 
     def start(self):
         self.safety_monitor.start()
-
-        # Start the LLM Realtime loop in a background thread
         threading.Thread(target=self.start_realtime_thread, daemon=True).start()
-
-        # Keep the display and VR inputs on the main thread
         self.display_loop()
 
     def is_mic_muted(self):
@@ -119,26 +114,22 @@ class ReachyControllerVR:
         if self.right_controller_id is None and self.left_controller_id is None:
             self.update_controller_ids()
             
-        # 1 << 1 is usually B/Y. 1 << 7 is usually A/X on Quest.
         MENU_BUTTON_BITMASK = 1 << 1 
             
-        # Check Right Controller
         if self.right_controller_id is not None:
             result, state = self.vrsystem.getControllerState(self.right_controller_id)
             if result and state.ulButtonPressed > 0:
-                # \r overwrites the current line to prevent spamming your terminal
                 print(f"\r[VR Debug] Right Controller Raw State: {state.ulButtonPressed}       ", end="")
                 if bool(state.ulButtonPressed & MENU_BUTTON_BITMASK): 
-                    print() # Move to a new line before triggering chat mode
+                    print() 
                     return True
 
-        # Check Left Controller
         if self.left_controller_id is not None:
             result, state = self.vrsystem.getControllerState(self.left_controller_id)
             if result and state.ulButtonPressed > 0:
                 print(f"\r[VR Debug] Left Controller Raw State: {state.ulButtonPressed}        ", end="")
                 if bool(state.ulButtonPressed & MENU_BUTTON_BITMASK):
-                    print() # Move to a new line
+                    print() 
                     return True
                 
         return False
@@ -149,12 +140,12 @@ class ReachyControllerVR:
         
         if self.conversation_mode:
             print("\n[VR Controller] Conversation Resumed.")
-            # Run in a background thread to prevent freezing the display loop
-            threading.Thread(target=self.speak_system, args=("Resuming conversation.",), daemon=True).start()
+            msg = "Resuming telemetry." if config.EXPERIMENT_CONDITION == "copilot" else "Resuming conversation."
+            threading.Thread(target=self.speak_system, args=(msg,), daemon=True).start()
         else:
             print("\n[VR Controller] Conversation Paused.")
-            threading.Thread(target=self.speak_system, args=("Pausing conversation.",), daemon=True).start()
-
+            msg = "Pausing telemetry." if config.EXPERIMENT_CONDITION == "copilot" else "Pausing conversation."
+            threading.Thread(target=self.speak_system, args=(msg,), daemon=True).start()
 
     def display_loop(self):
         print("Display Active. Press 'q' to quit.")
@@ -206,7 +197,6 @@ class ReachyControllerVR:
         
         self.milestones = {k: False for k in self.milestones}
 
-        # Inject the start prompt to Reachy
         if task_num == 1:
             asyncio.run_coroutine_threadsafe(
                 self.brain.inject_proactive_thought("We are starting Task 1. Deliver your exact Task 1 Start script now.", uninterruptible=True), 
@@ -217,23 +207,24 @@ class ReachyControllerVR:
                 self.brain.inject_proactive_thought("We are starting Task 2. Deliver your exact Task 2 Start script now.", uninterruptible=True), 
                 self.brain_loop
             )
-
         elif task_num == 3:
-            #Blank For Now
             pass
-
         elif task_num == 4:
+            # --- NEW: Branch the task 4 prompt based on condition ---
+            if config.EXPERIMENT_CONDITION == "copilot":
+                prompt = "We are starting Task 4. Deliver your exact Task 4 Start script now. Await Operator data input."
+            else:
+                prompt = "We are starting Task 4. Introduce the social sorting task and ask the user to pick up a block so you can tell them where it goes."
+            
             asyncio.run_coroutine_threadsafe(
-                self.brain.inject_proactive_thought("We are starting Task 4. Introduce the social sorting task and ask the user to pick up a block so you can tell them where it goes."), 
+                self.brain.inject_proactive_thought(prompt, uninterruptible=True), 
                 self.brain_loop
             )
 
-
     async def proactive_engagement_loop(self):
         """Runs in the background and periodically pushes Reachy to engage based on Task timers."""
-        
         while self.running:
-            await asyncio.sleep(1) # Check every second
+            await asyncio.sleep(1) 
             
             if not self.brain.is_connected or not self.task_timer_active:
                 continue
@@ -256,7 +247,7 @@ class ReachyControllerVR:
                 
                 elif elapsed_seconds >= 600 and not self.milestones["t1_1000"]:
                     self.milestones["t1_1000"] = True
-                    self.task_timer_active = False # End timer
+                    self.task_timer_active = False
                     await self.brain.inject_proactive_thought("10 minutes have passed. Deliver your exact '10:00 mark' completion script for Task 1.", uninterruptible=True)
 
             # --- TASK 2 TIMERS (2 Minutes) ---
@@ -267,8 +258,9 @@ class ReachyControllerVR:
                 
                 elif elapsed_seconds >= 120 and not self.milestones["t2_200"]:
                     self.milestones["t2_200"] = True
-                    self.task_timer_active = False # End timer
+                    self.task_timer_active = False 
                     await self.brain.inject_proactive_thought("2 minutes have passed. Deliver your exact '2:00 mark' completion script for Task 2.", uninterruptible=True)
+
 
 if __name__ == '__main__':
     controller = ReachyControllerVR()

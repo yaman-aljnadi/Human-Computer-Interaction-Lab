@@ -13,6 +13,9 @@ REACHY_IP = '192.168.50.242'
 # LLM_MODEL_ID = "Qwen/Qwen2.5-1.5B-Instruct"
 WHISPER_MODEL_TYPE = "base.en"
 
+# embodied
+EXPERIMENT_CONDITION = "embodied"
+
 # OPENAI TTS SETTINGS
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") 
 # OPENAI_LLM_MODEL = "gpt-4o"
@@ -34,7 +37,10 @@ SPEECH_PAUSE_THRESHOLD = 2.5
 #     "confused": "fable",  # Expressive
 # }
 
-ROBOT_VOICE = "alloy"
+if EXPERIMENT_CONDITION == "embodied":
+    ROBOT_VOICE = "alloy"  # Friendly, neutral-warm
+else:
+    ROBOT_VOICE = "echo"   # Deep, serious, authoritative
 
 # Audio Files (Temp files)
 TEMP_INPUT_AUDIO = "temp_command.wav"

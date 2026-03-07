@@ -9,17 +9,18 @@ import config
 import time
 
 class RealtimeBrain:
-    def __init__(self, get_frame_callback, get_mute_state_callback, condition="embodied"):
+    def __init__(self, get_frame_callback, get_mute_state_callback):
         self.get_frame_callback = get_frame_callback
         self.client = AsyncOpenAI(api_key=config.OPENAI_API_KEY)
         self.get_mute_state_callback = get_mute_state_callback
         
+        # --- NEW: Pull condition directly from config ---
+        self.condition = config.EXPERIMENT_CONDITION
         self.last_interaction_time = time.time()
 
         self.audio_format = pyaudio.paInt16
         self.channels = 1
         
-        # Record at Windows native rate, downsample to OpenAI rate
         self.native_rate = 48000 
         self.openai_rate = 24000 
         self.chunk = 2048 
@@ -32,7 +33,8 @@ class RealtimeBrain:
 
         self.audio_out_queue = asyncio.Queue()
 
-        prompt_file = "prompts/embodied_prompt.txt" if condition == "embodied" else "prompts/copilot_prompt.txt"
+        # Dynamically load the prompt based on the condition
+        prompt_file = f"prompts/{self.condition}_prompt.txt"
 
         try:
             with open(prompt_file, "r") as file:
@@ -59,7 +61,6 @@ class RealtimeBrain:
                 loop = asyncio.get_event_loop()
                 data = await loop.run_in_executor(None, self.mic_stream.read, self.chunk, False)
                 
-                # Instantly resample 48kHz to 24kHz for OpenAI
                 data_24k, audio_state = audioop.ratecv(
                     data, 2, self.channels, self.native_rate, self.openai_rate, audio_state
                 )
@@ -77,26 +78,20 @@ class RealtimeBrain:
                 self.mic_stream.stop_stream()
                 self.mic_stream.close()
 
-
-
     async def _wait_for_playback_to_finish_then_unmute(self):
-        """Waits for the local audio queue to drain before re-enabling the microphone."""
-        await asyncio.sleep(0.5) # Give the final audio chunks a moment to enter the queue
+        await asyncio.sleep(0.5) 
         
-        # Wait until the queue is completely empty
         while not self.audio_out_queue.empty():
             await asyncio.sleep(0.1)
             
-        await asyncio.sleep(0.5) # Buffer to ensure the physical speaker has stopped echoing
+        await asyncio.sleep(0.5) 
         self.uninterruptible_active = False
         print("[Realtime] Critical speech finished. Mic reopened for interruption.")
-
 
     async def start_session(self):
         self.is_connected = True
         
         try:
-            # Speakers usually handle 24kHz fine, but if it sounds glitchy, we can resample this later too
             self.speaker_stream = self.pyaudio_instance.open(
                 format=self.audio_format, channels=self.channels,
                 rate=self.openai_rate, output=True 
@@ -115,21 +110,12 @@ class RealtimeBrain:
                 "instructions": self.system_prompt,
                 "audio": {
                     "input": {
-                        "format": {
-                            "type": "audio/pcm",
-                            "rate": self.openai_rate, 
-                        },
+                        "format": {"type": "audio/pcm", "rate": self.openai_rate},
                         "transcription": {"model": "whisper-1"},
-                        "turn_detection": {
-                            "type": "server_vad",
-                            "interrupt_response": True, 
-                        },
+                        "turn_detection": {"type": "server_vad", "interrupt_response": True},
                     },
                     "output": {
-                        "format": {
-                            "type": "audio/pcm",
-                            "rate": self.openai_rate,
-                        },
+                        "format": {"type": "audio/pcm", "rate": self.openai_rate},
                         "voice": config.ROBOT_VOICE,
                     }
                 },
@@ -142,26 +128,19 @@ class RealtimeBrain:
                 "tool_choice": "auto"
             })
 
-            # --- MODIFICATION START ---
-            # Start both the microphone input task and the new audio output task
             asyncio.create_task(self._audio_input_task(conn))
             asyncio.create_task(self._audio_output_task()) 
-            # --- MODIFICATION END ---
 
             async for event in conn:
                 if event.type == "input_audio_buffer.speech_started":
                     print("\n[OpenAI] Detected you are speaking. Interrupted!")
-                    
                     self.last_interaction_time = time.time()
 
-                    # --- MODIFICATION START ---
-                    # 1. Clear the pending audio queue instantly when the user speaks
                     while not self.audio_out_queue.empty():
                         try:
                             self.audio_out_queue.get_nowait()
                         except asyncio.QueueEmpty:
                             break
-                    # --- MODIFICATION END ---
                     
                 elif event.type == "input_audio_buffer.speech_stopped":
                     print("[OpenAI] Speech stopped. Processing...")
@@ -169,7 +148,6 @@ class RealtimeBrain:
                 elif event.type == "conversation.item.input_audio_transcription.completed":
                     print(f"[You] {event.transcript}")
                     
-                # UPDATED: Handle both beta and GA transcript event names
                 elif event.type in ("response.audio_transcript.done", "response.output_audio_transcript.done"):
                     print(f"[Reachy] {event.transcript}")
                     self.last_interaction_time = time.time()
@@ -181,23 +159,17 @@ class RealtimeBrain:
 
                 elif event.type == "response.done":
                     if self.uninterruptible_active:
-                        # The server finished generating. Now wait for the local speakers to finish playing.
                         asyncio.create_task(self._wait_for_playback_to_finish_then_unmute())
 
-                # UPDATED: Handle both beta and GA audio delta event names
                 elif event.type in ("response.audio.delta", "response.output_audio.delta"):
                     if self.speaker_stream:
                         audio_bytes = base64.b64decode(event.delta)
-                        # --- MODIFICATION START ---
-                        # Put audio into the queue instead of blocking the main event loop
                         self.audio_out_queue.put_nowait(audio_bytes)
-                        # --- MODIFICATION END ---
                 
                 elif event.type == "response.function_call_arguments.done":
                     if getattr(event, "name", "") == "see_environment":
                         print("\n[Realtime] Tool triggered: Looking around...")
                         
-                        # Grab BOTH the frame and the OpenCV text report
                         frame, cv_report = self.get_frame_callback()
                         
                         await conn.conversation.item.create(item={
@@ -211,11 +183,16 @@ class RealtimeBrain:
                             _, buffer = cv2.imencode('.jpg', rgb_frame)
                             b64_im = base64.b64encode(buffer).decode('utf-8')
 
-                            # Combine the image with a system prompt guiding how to use the noisy CV data
+                            # Modify system hint based on condition to keep the prompt strictly in character
+                            if self.condition == "copilot":
+                                cv_prompt_addition = f"SYSTEM NOTE: Optical sensor data stream: \n{cv_report}\n\nWARNING: Sensor reliability degraded. Cross-reference with Operator visual confirmation."
+                            else:
+                                cv_prompt_addition = f"SYSTEM NOTE: Here is what your internal OpenCV sensors are guessing: \n{cv_report}\n\nWARNING: This sensor is noisy and often mislabels colors or overlaps. Use this data as a general 'hunch', remember your 'Virtual Blindness', and respond naturally to the user."
+
                             content_payload = [
                                 {
                                     "type": "input_text", 
-                                    "text": f"SYSTEM NOTE: Here is what your internal OpenCV sensors are guessing: \n{cv_report}\n\nWARNING: This sensor is noisy and often mislabels colors or overlaps. Use this data as a general 'hunch', remember your 'Virtual Blindness', and respond naturally to the user."
+                                    "text": cv_prompt_addition
                                 },
                                 {
                                     "type": "input_image",
@@ -232,9 +209,11 @@ class RealtimeBrain:
                             )
                             print("[Realtime] Image and CV Context sent to OpenAI.")
                         
+                        # Tell it how to respond based on the condition
+                        instruction_text = "Report analytical findings to the Operator." if self.condition == "copilot" else "Answer conversationally about what you just saw or sensed."
                         await conn.response.create(
                             response={
-                                "instructions": "Answer conversationally about what you just saw or sensed.",
+                                "instructions": instruction_text,
                             }
                         )
 
@@ -245,19 +224,15 @@ class RealtimeBrain:
             self.speaker_stream.close()
         self.pyaudio_instance.terminate()
 
-
     async def inject_proactive_thought(self, text_instruction, uninterruptible=False):
-        """Silently injects a system thought and forces Reachy to speak."""
         if not self.is_connected or not self.active_connection:
             return
             
         print(f"[Realtime] Injecting thought: {text_instruction} (Uninterruptible: {uninterruptible})")
         
-        # --- NEW UNINTERRUPTIBLE LOGIC ---
         if uninterruptible:
             self.uninterruptible_active = True
             
-            # Clear the local audio queue so the warning takes immediate priority
             while not self.audio_out_queue.empty():
                 try:
                     self.audio_out_queue.get_nowait()
@@ -272,31 +247,27 @@ class RealtimeBrain:
             }
         )
         await self.active_connection.response.create()
-
+        
     async def _silence_monitor_task(self):
-        """Runs in the background and triggers Reachy if there is 2 minutes of silence."""
+        # --- NEW: Immediately exit if condition is copilot ---
+        if self.condition == "copilot":
+            return
+
         while self.is_connected:
             await asyncio.sleep(5) 
             
             if time.time() - self.last_interaction_time > 180:
-                # UPDATED: Emphasize the follower role in the background injection
-                # await self.inject_proactive_thought("It has been quiet for a couple of minutes. Joyfully check in with the user and ask how the task is going. Do NOT suggest a next step.")
-                await self.inject_proactive_thought("It has been quiet for a couple of minutes. Joyfully check in with the user to keep the conversation going.")
-                
+                await self.inject_proactive_thought("It has been quiet for a couple of minutes. Joyfully check in with the user to keep the conversation going.", uninterruptible=False)
                 self.last_interaction_time = time.time()
 
     async def _audio_output_task(self):
-            """Pulls audio from the queue and plays it without blocking the main loop."""
             while self.is_connected:
                 try:
-                    # Wait for audio chunks from the server
                     audio_bytes = await self.audio_out_queue.get()
                     if audio_bytes and self.speaker_stream:
-                        # Run the blocking PyAudio write in a separate thread
                         loop = asyncio.get_event_loop()
                         await loop.run_in_executor(None, self.speaker_stream.write, audio_bytes)
                 except asyncio.CancelledError:
                     break
                 except Exception as e:
                     print(f"[Audio Output Error] {e}")
-
