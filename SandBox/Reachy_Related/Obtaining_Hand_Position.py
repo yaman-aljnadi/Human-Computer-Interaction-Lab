@@ -3,7 +3,7 @@
 from reachy2_sdk import ReachySDK
 import time
 
-reachy = ReachySDK(host='192.168.50.241') 
+reachy = ReachySDK(host='192.168.50.242') 
 
 reachy.r_arm.turn_off()
 

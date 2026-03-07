@@ -280,7 +280,8 @@ class RealtimeBrain:
             
             if time.time() - self.last_interaction_time > 180:
                 # UPDATED: Emphasize the follower role in the background injection
-                await self.inject_proactive_thought("It has been quiet for a couple of minutes. Joyfully check in with the user and ask how the task is going. Do NOT suggest a next step.")
+                # await self.inject_proactive_thought("It has been quiet for a couple of minutes. Joyfully check in with the user and ask how the task is going. Do NOT suggest a next step.")
+                await self.inject_proactive_thought("It has been quiet for a couple of minutes. Joyfully check in with the user to keep the conversation going.")
                 
                 self.last_interaction_time = time.time()
 
