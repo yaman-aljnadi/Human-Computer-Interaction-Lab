@@ -19,6 +19,11 @@ LIMITS_CONFIG = {
     'r_arm.shoulder.roll_in':  {'limit': 20.0,  'dir': 'greater', 'msg': "Right Arm Hitting Stomach"}, # Measured 29
     'r_arm.elbow.pitch':       {'limit': -125.0,'dir': 'less', 'msg': "Right Elbow Max Flex"}, # Measured -132
 
+    { 'r_arm.shoulder.pitch': -52.0, 
+    'r_arm.shoulder.roll': -11.7, 
+    'r_arm.elbow.yaw': -9.0, 
+    'r_arm.elbow.pitch': 6.7 }
+
     # LEFT ARM
     'l_arm.shoulder.pitch': {'limit': -85.0, 'dir': 'less', 'msg': "Left Arm Too High"}, # Measured -90
     'l_arm.shoulder.roll_out': {'limit': 70.0,  'dir': 'greater', 'msg': "Left Arm Too Far Out"}, # Measured 78
