@@ -14,7 +14,8 @@ REACHY_IP = '192.168.50.242'
 WHISPER_MODEL_TYPE = "base.en"
 
 # embodied
-EXPERIMENT_CONDITION = "embodied"
+# copilot
+EXPERIMENT_CONDITION = "copilot"
 
 # OPENAI TTS SETTINGS
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") 
