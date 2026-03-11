@@ -1,6 +1,7 @@
 import time
 import threading
-import config  # <-- NEW: Import config to check condition
+import config  
+import random
 
 # --- CONFIGURATION ---
 LIMITS_CONFIG = {
@@ -50,7 +51,7 @@ class SafetyMonitor:
         self.status_messages = []
         
         self.last_spoken_time = 0
-        self.cooldown = 5.0  
+        self.cooldown = 30.0  
 
         # --- NEW: VELOCITY TRACKING STATE ---
         self.last_joint_states = {} # Stores (position, timestamp) for each joint
@@ -157,15 +158,35 @@ class SafetyMonitor:
             else: # Embodied condition
                 if warning_type == "speed":
                     friendly_name = msg.replace("r_arm", "right").replace("l_arm", "left").replace("_", " ")
-                    full_msg = f"Whoa, slow down a bit! You're moving my {friendly_name} too fast!"
+                    options = [
+                        f"Whoa, slow down a bit! You're moving my {friendly_name} too fast!",
+                        f"Easy there! My {friendly_name} is going a little too quick!",
+                        f"Ah, let's slow down! That's too fast for my {friendly_name}."
+                    ]
+                    full_msg = random.choice(options)
                 else:
                     clean_msg = msg.split(' (')[0] if ' (' in msg else msg
                     if level == 3: 
-                        full_msg = f"Stop! I can't go any further. Please, pull my {clean_msg} back!"
+                        options = [
+                            f"Stop! I can't go any further. Please, pull my {clean_msg} back!",
+                            f"Ouch! My {clean_msg} is at its absolute limit, please stop!",
+                            f"Ah! You've pushed my {clean_msg} too far, bring it back!"
+                        ]
+                        full_msg = random.choice(options)
                     elif level == 2: 
-                        full_msg = f"Oof... I'm really stretching here. My {clean_msg} is starting to feel a lot of pressure."
+                        options = [
+                            f"Oof... I'm really stretching here. My {clean_msg} is starting to feel a lot of pressure.",
+                            f"Whoa, my {clean_msg} is getting really tight!",
+                            f"Careful! That's a huge stretch for my {clean_msg}."
+                        ]
+                        full_msg = random.choice(options)
                     else:
-                        full_msg = f"Careful, my {clean_msg} feels a bit tight."
+                        options = [
+                            f"Careful, my {clean_msg} feels a bit tight.",
+                            f"Just a heads up, my {clean_msg} is getting close to its limit.",
+                            f"I'm feeling a little pull on my {clean_msg}."
+                        ]
+                        full_msg = random.choice(options)
             
             print(f"[Safety Monitor - {config.EXPERIMENT_CONDITION.capitalize()}] {full_msg}")
             threading.Thread(target=self.speak_callback, args=(full_msg,), daemon=True).start()

@@ -70,13 +70,20 @@ class ReachyControllerVR:
         
         # --- NEW: Branch the instruction based on condition ---
         if config.EXPERIMENT_CONDITION == "copilot":
-            instruction = f"System alert triggered: '{text}'. Relay this telemetry data to the Operator strictly and objectively. Do not use personal pronouns."
+            instruction = f"System alert triggered: '{text}'. Relay this telemetry data to the Operator strictly and objectively. Refer to the body as 'the robot'. Do not use personal pronouns."
         else:
             instruction = f"Your body just felt this: '{text}'. Tell the user this naturally in first-person, making sure to explicitly name the body part (e.g., 'Oh! My {text}!'). Do not read the raw numbers."
         
         if hasattr(self, 'brain') and self.brain.is_connected:
+            # --- CHANGE 2: Prioritize tasks over warnings ---
+            # If a task announcement is actively playing, ignore the warning completely.
+            if self.brain.uninterruptible_active:
+                print(f"[System Override] Warning suppressed to prioritize active task announcement.")
+                return
+
             asyncio.run_coroutine_threadsafe(
-                self.brain.inject_proactive_thought(instruction, uninterruptible=True), 
+                # Set uninterruptible=False so normal warnings don't block future tasks
+                self.brain.inject_proactive_thought(instruction, uninterruptible=False), 
                 self.brain_loop
             )
 
