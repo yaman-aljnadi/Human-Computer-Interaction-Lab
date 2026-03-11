@@ -9,11 +9,12 @@ import config
 import time
 
 class RealtimeBrain:
-    def __init__(self, get_frame_callback, get_mute_state_callback):
+    def __init__(self, get_frame_callback, get_mute_state_callback, stop_timer_callback):
         self.get_frame_callback = get_frame_callback
         self.client = AsyncOpenAI(api_key=config.OPENAI_API_KEY)
         self.get_mute_state_callback = get_mute_state_callback
-        
+        self.stop_timer_callback = stop_timer_callback
+
         # --- NEW: Pull condition directly from config ---
         self.condition = config.EXPERIMENT_CONDITION
         self.last_interaction_time = time.time()
@@ -124,7 +125,14 @@ class RealtimeBrain:
                     "name": "see_environment",
                     "description": "Look at the user's environment to see what is in front of you.",
                     "parameters": {"type": "object", "properties": {"focus": {"type": "string"}}}
-                }],
+                },
+                { 
+                        "type": "function",
+                        "name": "end_task_early",
+                        "description": "Call this immediately if the user states they have finished the current task before the time runs out.",
+                        "parameters": {"type": "object", "properties": {}}
+                }
+                    ],
                 "tool_choice": "auto"
             })
 
@@ -216,6 +224,23 @@ class RealtimeBrain:
                                 "instructions": instruction_text,
                             }
                         )
+
+                    elif getattr(event, "name", "") == "end_task_early":
+                        print("\n[Realtime] Tool triggered: Task ended early by user.")
+                        self.stop_timer_callback() # Stop the background timers!
+                        
+                        await conn.conversation.item.create(item={
+                            "type": "function_call_output",
+                            "call_id": event.call_id,
+                            "output": json.dumps({"status": "timers stopped"})
+                        })
+                        
+                        # Tell Reachy to deliver the end script
+                        hint = "Task ended early. Deliver your exact completion script for the current task now."
+                        await conn.response.create(
+                            response={"instructions": hint}
+                        )
+
 
     def stop(self):
         self.is_connected = False

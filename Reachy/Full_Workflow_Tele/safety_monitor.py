@@ -17,7 +17,7 @@ LIMITS_CONFIG = {
 }
 
 # --- NEW: VELOCITY CONFIGURATION ---
-SPEED_LIMIT_DEG_PER_SEC = 70  # You will need to calibrate this number!
+SPEED_LIMIT_DEG_PER_SEC = 90  # You will need to calibrate this number!
 VIOLATION_THRESHOLD = 3          # Must exceed speed limit 3 times in a row to trigger
 
 def get_safety_status(current_val, limit_val, direction, buffer_warn, buffer_caut):

@@ -45,7 +45,7 @@ class ReachyControllerVR:
         # --- INIT REALTIME BRAIN ---
         # UPDATED: We removed the hardcoded condition="embodied" because RealtimeBrain 
         # now handles it internally via config.EXPERIMENT_CONDITION.
-        self.brain = RealtimeBrain(self.get_camera_data, self.is_mic_muted)
+        self.brain = RealtimeBrain(self.get_camera_data, self.is_mic_muted, self.stop_timers)
         self.brain_loop = asyncio.new_event_loop()
         
         self.active_connection = None
@@ -227,6 +227,11 @@ class ReachyControllerVR:
                 self.brain.inject_proactive_thought(prompt, uninterruptible=True), 
                 self.brain_loop
             )
+
+    def stop_timers(self):
+            """Callback to disable active task timers if the user finishes early."""
+            print("[WoZ] Timers stopped via early completion tool.")
+            self.task_timer_active = False
 
     async def proactive_engagement_loop(self):
         """Runs in the background and periodically pushes Reachy to engage based on Task timers."""
