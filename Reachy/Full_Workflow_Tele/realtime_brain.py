@@ -193,7 +193,7 @@ class RealtimeBrain:
 
                             # Modify system hint based on condition to keep the prompt strictly in character
                             if self.condition == "copilot":
-                                cv_prompt_addition = f"SYSTEM NOTE: Optical sensor data stream: \n{cv_report}\n\nWARNING: Sensor reliability degraded. Cross-reference with Operator visual confirmation."
+                                cv_prompt_addition = f"SYSTEM NOTE: Here is what the robot's OpenCV sensors are guessing: \n{cv_report}\n\nWARNING: This sensor is noisy. Use this data as a general 'hunch' and respond naturally to the Operator about what the robot is seeing."
                             else:
                                 cv_prompt_addition = f"SYSTEM NOTE: Here is what your internal OpenCV sensors are guessing: \n{cv_report}\n\nWARNING: This sensor is noisy and often mislabels colors or overlaps. Use this data as a general 'hunch', remember your 'Virtual Blindness', and respond naturally to the user."
 
@@ -218,7 +218,7 @@ class RealtimeBrain:
                             print("[Realtime] Image and CV Context sent to OpenAI.")
                         
                         # Tell it how to respond based on the condition
-                        instruction_text = "Report analytical findings to the Operator." if self.condition == "copilot" else "Answer conversationally about what you just saw or sensed."
+                        instruction_text = "Answer conversationally about what you just saw through the robot's cameras." if self.condition == "copilot" else "Answer conversationally about what you just saw or sensed."
                         await conn.response.create(
                             response={
                                 "instructions": instruction_text,

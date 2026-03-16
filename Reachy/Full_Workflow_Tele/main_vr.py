@@ -34,6 +34,13 @@ class ReachyControllerVR:
         self.current_task = 0
         self.task_start_time = 0
         self.task_timer_active = False
+
+        self.task_durations = {
+            1: 600,  
+            2: 120,  
+        }
+
+
         # Track milestones at the class level
         self.milestones = {
             "t1_230": False, "t1_500": False, "t1_730": False, "t1_1000": False,
@@ -70,7 +77,7 @@ class ReachyControllerVR:
         
         # --- NEW: Branch the instruction based on condition ---
         if config.EXPERIMENT_CONDITION == "copilot":
-            instruction = f"System alert triggered: '{text}'. Relay this telemetry data to the Operator strictly and objectively. Refer to the body as 'the robot'. Do not use personal pronouns."
+            instruction = f"The robot just felt this: '{text}'. Tell the Operator this naturally, showing friendly concern. Explicitly name the body part but refer to it in the third person (e.g., 'Oh! The robot's {text}!'). Do not read the raw numbers."
         else:
             instruction = f"Your body just felt this: '{text}'. Tell the user this naturally in first-person, making sure to explicitly name the body part (e.g., 'Oh! My {text}!'). Do not read the raw numbers."
         
@@ -168,6 +175,21 @@ class ReachyControllerVR:
                 cv2.imshow("Reachy Depth Tracking", processed_frame)
                 
             if head_frame is not None:
+                if self.task_timer_active and self.current_task in self.task_durations:
+                    elapsed = int(time.time() - self.task_start_time)
+                    remaining = max(0, self.task_durations[self.current_task] - elapsed)
+                    mins, secs = divmod(remaining, 60)
+                    time_str = f"Task {self.current_task}: {mins:02d}:{secs:02d}"
+                    
+                    # Draw a semi-transparent black background box so the text is always readable
+                    overlay = head_frame.copy()
+                    cv2.rectangle(overlay, (10, 10), (320, 60), (0, 0, 0), -1)
+                    cv2.addWeighted(overlay, 0.6, head_frame, 0.4, 0, head_frame)
+                    
+                    # Draw the green timer text
+                    cv2.putText(head_frame, time_str, (20, 45), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 3)
+                
+                # Show the final frame to the researcher
                 cv2.imshow("Reachy VR Vision", head_frame)
 
             key = cv2.waitKey(1) & 0xFF
@@ -215,18 +237,18 @@ class ReachyControllerVR:
                 self.brain_loop
             )
         elif task_num == 3:
-            pass
-        elif task_num == 4:
-            # --- NEW: Branch the task 4 prompt based on condition ---
             if config.EXPERIMENT_CONDITION == "copilot":
-                prompt = "We are starting Task 4. Deliver your exact Task 4 Start script now. Await Operator data input."
+                prompt = "We are starting Task 3. Deliver your exact Task 3 Start script now. Await Operator data input."
             else:
-                prompt = "We are starting Task 4. Introduce the social sorting task and ask the user to pick up a block so you can tell them where it goes."
+                prompt = "We are starting Task 3. Introduce the social sorting task and ask the user to pick up a block so you can tell them where it goes."
             
             asyncio.run_coroutine_threadsafe(
                 self.brain.inject_proactive_thought(prompt, uninterruptible=True), 
                 self.brain_loop
             )
+
+        elif task_num == 4:
+            pass
 
     def stop_timers(self):
             """Callback to disable active task timers if the user finishes early."""

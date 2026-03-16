@@ -145,15 +145,30 @@ class SafetyMonitor:
             if config.EXPERIMENT_CONDITION == "copilot":
                 if warning_type == "speed":
                     friendly_name = msg.replace("r_arm", "right").replace("l_arm", "left").replace("_", " ")
-                    full_msg = f"Telemetry Alert: Velocity limit exceeded on {friendly_name}. Reduce Operator input speed immediately."
+                    options = [
+                        f"Oh, watch out! You're moving the robot's {friendly_name} a bit too fast!",
+                        f"Easy there! The robot's {friendly_name} is going a little too quick!"
+                    ]
+                    full_msg = random.choice(options)
                 else:
-                    sys_name = LIMITS_CONFIG[joint_key]['sys_name'] if joint_key else "hardware"
+                    clean_msg = msg.split(' (')[0] if ' (' in msg else msg
                     if level == 3: 
-                        full_msg = f"Critical Alert: {sys_name} limit reached "
+                        options = [
+                            f"Stop! The robot can't go any further. Please, pull its {clean_msg} back!",
+                            f"Ah! You've pushed the robot's {clean_msg} too far, bring it back!"
+                        ]
+                        full_msg = random.choice(options)
                     elif level == 2: 
-                        full_msg = f"Warning: {sys_name} is approaching maximum mechanical tolerance."
+                        options = [
+                            f"Careful! That's a huge stretch for the robot's {clean_msg}.",
+                            f"Whoa, the robot's {clean_msg} is getting really tight!"
+                        ]
+                        full_msg = random.choice(options)
                     else:
-                        full_msg = f"Notice: {sys_name} telemetry indicates caution zone."
+                        options = [
+                            f"Just a heads up, the robot's {clean_msg} is getting close to its limit."
+                        ]
+                        full_msg = random.choice(options)
                         
             else: # Embodied condition
                 if warning_type == "speed":

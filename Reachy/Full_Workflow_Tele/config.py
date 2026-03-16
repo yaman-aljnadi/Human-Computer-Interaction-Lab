@@ -15,7 +15,7 @@ WHISPER_MODEL_TYPE = "base.en"
 
 # embodied
 # copilot
-EXPERIMENT_CONDITION = "embodied"
+EXPERIMENT_CONDITION = "copilot"
 
 # OPENAI TTS SETTINGS
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") 
@@ -41,7 +41,7 @@ SPEECH_PAUSE_THRESHOLD = 2.5
 if EXPERIMENT_CONDITION == "embodied":
     ROBOT_VOICE = "alloy"  # Friendly, neutral-warm
 else:
-    ROBOT_VOICE = "echo"   # Deep, serious, authoritative
+    ROBOT_VOICE = "alloy"   # Deep, serious, authoritative
 
 # Audio Files (Temp files)
 TEMP_INPUT_AUDIO = "temp_command.wav"
