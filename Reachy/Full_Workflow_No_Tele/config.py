@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 # Connection
-REACHY_IP = '192.168.50.213'
+REACHY_IP = '192.168.50.242'
 
 # Models
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
@@ -17,6 +17,8 @@ WHISPER_MODEL_TYPE = "base.en"
 # OPENAI TTS SETTINGS
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") 
 TTS_MODEL = "gpt-4o-mini-tts"      
+
+OPENAI_REALTIME_MODEL = "gpt-realtime-mini-2025-12-15"
 
 LISTEN_OVERLAP_TIME = 1.2
 SPEECH_PAUSE_THRESHOLD = 2.5
@@ -35,7 +37,7 @@ ROBOT_VOICE = "alloy"
 
 # Audio Files (Temp files)
 TEMP_INPUT_AUDIO = "temp_command.wav"
-TEMP_OUTPUT_AUDIO = "reachy_speech.mp3" 
+TEMP_OUTPUT_AUDIO = "reachy_speech.wav" 
 SYSTEM_AUDIO = "system_speech.mp3"
 
 # Weird Stuff Delete later 

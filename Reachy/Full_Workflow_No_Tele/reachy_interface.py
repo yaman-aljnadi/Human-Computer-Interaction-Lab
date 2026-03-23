@@ -106,7 +106,7 @@ class ReachyRobot:
                 
             # Wait (Blocking)
             if wait:
-                time.sleep(duration - 0.5)
+                time.sleep(duration + 0.2)
 
     def look_at_smooth(self, x, y, z):
         """

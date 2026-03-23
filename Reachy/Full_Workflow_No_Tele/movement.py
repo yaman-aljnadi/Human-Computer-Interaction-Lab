@@ -105,47 +105,59 @@ class BodyLanguage:
         print("[Body] Wave complete.")
 
     def _dance_loop(self):
-            """
-            The Robot Dance Routine using JOINT COORDINATES.
-            Format: [shoulder_pitch, shoulder_roll, elbow_yaw, elbow_pitch, wrist_roll, wrist_pitch, wrist_yaw]
-            """
-            # This is so confusing and I hate it 
-            # 1. "The Box" (Elbows bent 90 degrees)
-            # Right arm: elbow bent -90
-            right_box = [0, 0, 0, -90, 0, 0, 0] 
-            # Left arm: elbow bent -90
-            left_box  = [0, 0, 0, -90, 0, 0, 0]
+        """
+        The Tron "End of Line" Dance Routine.
+        Strictly respects kinematic mirroring: 
+        Right shoulder roll MUST be negative to clear the waist.
+        Left shoulder roll MUST be positive to clear the waist.
+        """
+        # Joint Order: [sh_pitch, sh_roll, el_yaw, el_pitch, wr_roll, wr_pitch, wr_yaw]
+        
+        # Pose 1: "The Grid" (Arms raised safely, bent 90 deg, flared OUT away from waist)
+        r_grid = [-20, -30, 0, -90, 90, 0, 0]
+        l_grid = [-20, 30, 0, -90, -90, 0, 0]
 
-            # 2. "Sky Reach" (Right Up, Left Down)
-            # Right: Shoulder pitch -60 (up)
-            right_up = [-60, 0, 0, -45, 0, 0, 0]
-            # Left: Shoulder pitch 40 (down)
-            left_down = [40, 0, 0, -45, 0, 0, 0]
+        # Pose 2: "The DJ" (Right hand near ear flared out, left arm forward mixing)
+        r_dj = [-40, -40, 0, -100, -90, -20, 45]
+        l_dj = [-10, 20, 0, -45, 90, 0, -45]
 
-            # 3. "Swap" (Right Down, Left Up)
-            right_down = [40, 0, 0, -45, 0, 0, 0]
-            left_up    = [-60, 0, 0, -45, 0, 0, 0]
+        # Pose 3: "The Interface" (Arms low but pushed WIDE away from the base, wrist sweep)
+        r_low = [10, -45, 0, -30, 150, 0, -45]
+        l_low = [10, 45, 0, -30, -150, 0, 45]
 
-            moves = [
-                (right_box, left_box),
-                (right_up, left_down),
-                (right_down, left_up),
-                (right_box, left_box)
-            ]
+        # Pose 4: "The Override" (Angular lock forward, wrists reset)
+        r_lock = [-20, -25, 0, -90, 0, 0, 45]
+        l_lock = [-20, 25, 0, -90, 0, 0, -45]
 
-            while self.is_dancing:
-                for r_pos, l_pos in moves:
-                    if not self.is_dancing: break
-                    
-                    # Execute move using lists of angles
-                    # !!! NEVER USE A DURATION LESS THAN 1 SEC OTHER WISE THE ARMS CRASH WILL CRASH OR PUNCH YOU IN THE FACE !!!
-                    self.robot.r_arm.goto(r_pos, duration=3, wait=False)
-                    self.robot.l_arm.goto(l_pos, duration=3, wait=False)
-                    
-                    # Head bob
-                    self.robot.head.look_at(x=1.0, y=0.0, z=random.choice([-0.1, 0.1]), duration=1, wait=False)
-                    
-                    time.sleep(1) # Wait for the beat
+        moves = [
+            (r_grid, l_grid),
+            (r_dj, l_dj),
+            (r_low, l_low),
+            (r_lock, l_lock)
+        ]
+
+        # Beat tracker
+        step = 0
+
+        while self.is_dancing:
+            r_pos, l_pos = moves[step % len(moves)]
+            
+            # Execute sharp robotic move (1.5 seconds keeps it safe but snappy)
+            self.robot.r_arm.goto(r_pos, duration=2, wait=False)
+            self.robot.l_arm.goto(l_pos, duration=2, wait=False)
+            
+            # Antennas pop to the beat
+            ant_pos = 45 if step % 2 == 0 else -45
+            self.robot.head.l_antenna.goto(ant_pos, duration=1, wait=False)
+            self.robot.head.r_antenna.goto(ant_pos, duration=1, wait=False)
+            
+            # Head scans the crowd side to side
+            head_yaw = 0.2 if step % 2 == 0 else -0.2
+            self.robot.head.look_at(x=1.0, y=head_yaw, z=0.0, duration=1, wait=False)
+            
+            # Sleep dictates the tempo of the transitions
+            time.sleep(2) 
+            step += 1
 
     # Speaking Loop
     def _behavior_loop(self):
