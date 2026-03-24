@@ -36,14 +36,20 @@ class ReachyControllerVR:
         self.task_timer_active = False
 
         self.task_durations = {
-            1: 600,  
+            1: 420,
             2: 120,  
         }
+
+        self.task_2_metronome_path = os.path.join(
+            os.path.dirname(__file__),
+            "Researcher_Mode",
+            "60_Metronome.mp3",
+        )
 
 
         # Track milestones at the class level
         self.milestones = {
-            "t1_230": False, "t1_500": False, "t1_730": False, "t1_1000": False,
+            "t1_230": False, "t1_500": False, "t1_700": False,
             "t2_100": False, "t2_200": False
         }
 
@@ -220,6 +226,7 @@ class ReachyControllerVR:
     def start_task(self, task_num):
         """WoZ helper to switch tasks and reset timers."""
         print(f"\n[WoZ] Starting Task {task_num}...")
+        self.robot.stop_audio()
         self.current_task = task_num
         self.task_start_time = time.time()
         self.task_timer_active = True
@@ -232,6 +239,7 @@ class ReachyControllerVR:
                 self.brain_loop
             )
         elif task_num == 2:
+            self.robot.play_audio_for_duration(self.task_2_metronome_path, self.task_durations[2])
             asyncio.run_coroutine_threadsafe(
                 self.brain.inject_proactive_thought("We are starting Task 2. Deliver your exact Task 2 Start script now.", uninterruptible=True), 
                 self.brain_loop
@@ -254,6 +262,7 @@ class ReachyControllerVR:
             """Callback to disable active task timers if the user finishes early."""
             print("[WoZ] Timers stopped via early completion tool.")
             self.task_timer_active = False
+            self.robot.stop_audio()
 
     async def proactive_engagement_loop(self):
         """Runs in the background and periodically pushes Reachy to engage based on Task timers."""
@@ -265,7 +274,7 @@ class ReachyControllerVR:
                 
             elapsed_seconds = time.time() - self.task_start_time
             
-            # --- TASK 1 TIMERS (10 Minutes) ---
+            # --- TASK 1 TIMERS (7 Minutes) ---
             if self.current_task == 1:
                 if elapsed_seconds >= 150 and not self.milestones["t1_230"]:
                     self.milestones["t1_230"] = True
@@ -275,14 +284,10 @@ class ReachyControllerVR:
                     self.milestones["t1_500"] = True
                     await self.brain.inject_proactive_thought("5 minutes have passed. Deliver your exact '5:00 mark' script for Task 1.", uninterruptible=True)
                 
-                elif elapsed_seconds >= 450 and not self.milestones["t1_730"]:
-                    self.milestones["t1_730"] = True
-                    await self.brain.inject_proactive_thought("7 minutes and 30 seconds have passed. Deliver your exact '7:30 mark' script for Task 1.", uninterruptible=True)
-                
-                elif elapsed_seconds >= 600 and not self.milestones["t1_1000"]:
-                    self.milestones["t1_1000"] = True
+                elif elapsed_seconds >= 420 and not self.milestones["t1_700"]:
+                    self.milestones["t1_700"] = True
                     self.task_timer_active = False
-                    await self.brain.inject_proactive_thought("10 minutes have passed. Deliver your exact '10:00 mark' completion script for Task 1.", uninterruptible=True)
+                    await self.brain.inject_proactive_thought("7 minutes have passed. Deliver your exact '7:00 mark' completion script for Task 1.", uninterruptible=True)
 
             # --- TASK 2 TIMERS (2 Minutes) ---
             elif self.current_task == 2:
@@ -293,6 +298,7 @@ class ReachyControllerVR:
                 elif elapsed_seconds >= 120 and not self.milestones["t2_200"]:
                     self.milestones["t2_200"] = True
                     self.task_timer_active = False 
+                    self.robot.stop_audio()
                     await self.brain.inject_proactive_thought("2 minutes have passed. Deliver your exact '2:00 mark' completion script for Task 2.", uninterruptible=True)
 
 

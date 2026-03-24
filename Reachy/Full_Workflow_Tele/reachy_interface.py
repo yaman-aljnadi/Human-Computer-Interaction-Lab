@@ -1,5 +1,6 @@
 import time
 import os
+import threading
 from reachy2_sdk import ReachySDK
 from reachy2_sdk.media.camera import CameraView
 import config
@@ -34,6 +35,7 @@ class ReachyRobotVR:
 
         # --- NEW: Tracking ID for audio interruptions ---
         self._current_audio_id = 0
+        self._timed_stop_thread = None
 
     def get_frame(self):
         """Returns the left eye frame for the VLM."""
@@ -102,6 +104,30 @@ class ReachyRobotVR:
                     pygame.mixer.music.unload() 
                 except AttributeError:
                     pass 
+
+    def stop_audio(self):
+        """Stops any currently playing audio and invalidates existing wait loops."""
+        self._current_audio_id += 1
+        pygame.mixer.music.stop()
+        try:
+            pygame.mixer.music.unload()
+        except AttributeError:
+            pass
+
+    def play_audio_for_duration(self, file_path, duration_seconds):
+        """Plays audio immediately and stops it after a fixed duration unless interrupted."""
+        self.stop_audio()
+        self.play_audio(file_path, wait=False)
+
+        my_audio_id = self._current_audio_id
+
+        def _stop_after_delay():
+            time.sleep(duration_seconds)
+            if my_audio_id == self._current_audio_id:
+                self.stop_audio()
+
+        self._timed_stop_thread = threading.Thread(target=_stop_after_delay, daemon=True)
+        self._timed_stop_thread.start()
 
     def disconnect(self):
         self.sdk.disconnect()

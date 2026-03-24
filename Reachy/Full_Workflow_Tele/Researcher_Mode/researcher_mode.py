@@ -1,5 +1,6 @@
 import time
 import threading
+import os
 import cv2
 import pygame
 import numpy as np
@@ -7,7 +8,7 @@ from reachy2_sdk import ReachySDK
 from reachy2_sdk.media.camera import CameraView
 
 TASK_DURATIONS = {
-    1: 600,  # Task 1: 10 minutes
+    1: 420,  # Task 1: 7 minutes
     2: 120,  # Task 2: 2 minutes
     3: 300,  # Task 3: Change Later
     4: 300   # Task 4: Change Later
@@ -28,13 +29,15 @@ class ResearcherMode:
         print(">>> STARTING RESEARCHER BASELINE MODE (No AI) <<<")
         
         pygame.mixer.init()
+        base_dir = os.path.dirname(__file__)
         try:
-            self.sound_timer = pygame.mixer.Sound("Timer.mp3")
-            self.sound_warning = pygame.mixer.Sound("Warning.mp3")
-            print("[Audio] Loaded Timer.mp3 and Warning.mp3 successfully.")
+            self.sound_timer = pygame.mixer.Sound(os.path.join(base_dir, "Timer.mp3"))
+            self.sound_warning = pygame.mixer.Sound(os.path.join(base_dir, "Warning.mp3"))
+            self.metronome_path = os.path.join(base_dir, "60_Metronome.mp3")
+            print("[Audio] Loaded Timer.mp3, Warning.mp3, and 60_Metronome.mp3 successfully.")
         except Exception as e:
             print(f"[Audio Error] Could not load sound files: {e}. Make sure they are in the same folder.")
-            self.sound_timer, self.sound_warning = None, None
+            self.sound_timer, self.sound_warning, self.metronome_path = None, None, None
 
         print(f"[Network] Connecting to Reachy at 192.68.50.242 ...")
         self.sdk = ReachySDK(host="192.168.50.242")
@@ -49,7 +52,7 @@ class ResearcherMode:
         
         # Matching the LLM workflow
         self.milestones = {
-            "t1_230": False, "t1_500": False, "t1_730": False, "t1_1000": False,
+            "t1_230": False, "t1_500": False, "t1_700": False,
             "t2_100": False, "t2_200": False
         }
         
@@ -63,6 +66,7 @@ class ResearcherMode:
 
     def start_task(self, task_num):
         """Starts a task and its specific timer."""
+        self.stop_metronome()
         self.current_task = task_num
         self.task_start_time = time.time()
         self.task_active = True
@@ -73,6 +77,8 @@ class ResearcherMode:
         duration_mins = TASK_DURATIONS[task_num] / 60
         print(f"\n[Experiment] Started Task {task_num}. Timer active.")
         self.play_sound(self.sound_timer) # Play sound on initial start
+        if task_num == 2:
+            self.start_metronome()
 
     def stop_task(self):
         """Manually ends the current task."""
@@ -80,6 +86,24 @@ class ResearcherMode:
             print(f"\n[Experiment] Task {self.current_task} manually stopped.")
             self.task_active = False
             self.current_task = 0
+            self.stop_metronome()
+
+    def start_metronome(self):
+        """Starts the Task 2 metronome loop."""
+        if self.metronome_path:
+            try:
+                pygame.mixer.music.load(self.metronome_path)
+                pygame.mixer.music.play()
+            except Exception as e:
+                print(f"[Audio Error] Could not play metronome: {e}")
+
+    def stop_metronome(self):
+        """Stops the Task 2 metronome if it is playing."""
+        pygame.mixer.music.stop()
+        try:
+            pygame.mixer.music.unload()
+        except AttributeError:
+            pass
 
     def timer_loop(self):
         """Background thread to monitor active task timers and trigger milestones."""
@@ -98,15 +122,10 @@ class ResearcherMode:
                         self.play_sound(self.sound_timer)
                         print("\n[Timer] Task 1: 5:00 milestone reached!")
                     
-                    elif elapsed >= 450 and not self.milestones["t1_730"]:
-                        self.milestones["t1_730"] = True
+                    elif elapsed >= 420 and not self.milestones["t1_700"]:
+                        self.milestones["t1_700"] = True
                         self.play_sound(self.sound_timer)
-                        print("\n[Timer] Task 1: 7:30 milestone reached!")
-                    
-                    elif elapsed >= 600 and not self.milestones["t1_1000"]:
-                        self.milestones["t1_1000"] = True
-                        self.play_sound(self.sound_timer)
-                        print("\n[Timer] Task 1: 10:00 completion reached!")
+                        print("\n[Timer] Task 1: 7:00 completion reached!")
                         self.task_active = False
                         self.current_task = 0
 
@@ -122,6 +141,7 @@ class ResearcherMode:
                         print("\n[Timer] Task 2: 2:00 completion reached!")
                         self.task_active = False
                         self.current_task = 0
+                        self.stop_metronome()
                         
                 elif self.current_task in [3, 4]:
                     target_duration = TASK_DURATIONS[self.current_task]
@@ -130,6 +150,7 @@ class ResearcherMode:
                         self.play_sound(self.sound_timer)
                         self.task_active = False
                         self.current_task = 0
+                        self.stop_metronome()
                         
             time.sleep(0.5)
 
