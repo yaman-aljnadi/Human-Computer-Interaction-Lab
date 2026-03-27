@@ -21,7 +21,7 @@ class ReachyRobotVR:
 
         # HEARING THE VOICE FROM REACHY 
         # try:
-        #     self.sdk.audio.set_volume(80) S
+        #     self.sdk.audio.set_volume(80) 
         # except:
         #     pass
         # print("[VR Interface] Reachy Connected (Passive Mode).")

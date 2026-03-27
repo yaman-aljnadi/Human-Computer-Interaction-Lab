@@ -21,7 +21,7 @@ left_arm_joints = [
     reachy.l_arm._wrist.pitch,
     reachy.l_arm._wrist.yaw,
 ]
- 
+
 
 right_hand_joints = [
     reachy.r_arm._shoulder.pitch,
