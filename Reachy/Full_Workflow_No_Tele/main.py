@@ -105,9 +105,10 @@ class ReachyController:
 
     def start(self):
         # Wave animation
+        threading.Thread(target=self.start_realtime_thread, daemon=True).start()
+        
         wave_thread = threading.Thread(target=self.body.perform_wave)
         wave_thread.start()
-        wave_thread.join()
 
         # Start the Brain's listening/WebSocket loop
         threading.Thread(target=self.start_realtime_thread, daemon=True).start()

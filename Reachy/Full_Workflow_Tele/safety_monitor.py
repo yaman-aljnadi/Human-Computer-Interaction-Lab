@@ -6,12 +6,12 @@ import random
 # --- CONFIGURATION ---
 LIMITS_CONFIG = {
     # RIGHT ARM
-    'r_arm.shoulder.pitch': {'limit': -52.0, 'dir': 'less', 'msg': "right shoulder is raised way too high", 'sys_name': "right shoulder pitch", 'buffer_warn': 10.0, 'buffer_caut': 20.0}, 
+    'r_arm.shoulder.pitch': {'limit': -62.0, 'dir': 'less', 'msg': "right shoulder is raised way too high", 'sys_name': "right shoulder pitch", 'buffer_warn': 10.0, 'buffer_caut': 20.0}, 
     'r_arm.shoulder.roll_out': {'limit': -70.0, 'dir': 'less', 'msg': "right arm is stretched all the way out", 'sys_name': "right shoulder roll", 'buffer_warn': 15.0, 'buffer_caut': 25.0}, 
     'r_arm.elbow.pitch':       {'limit': -125.0,'dir': 'less', 'msg': "right elbow is tucked all the way in", 'sys_name': "right elbow pitch", 'buffer_warn': 8.0, 'buffer_caut': 15.0}, 
 
     # LEFT ARM
-    'l_arm.shoulder.pitch': {'limit': -52.0, 'dir': 'less', 'msg': "left shoulder is raised way too high", 'sys_name': "left shoulder pitch", 'buffer_warn': 10.0, 'buffer_caut': 20.0}, 
+    'l_arm.shoulder.pitch': {'limit': -62.0, 'dir': 'less', 'msg': "left shoulder is raised way too high", 'sys_name': "left shoulder pitch", 'buffer_warn': 10.0, 'buffer_caut': 20.0}, 
     'l_arm.shoulder.roll_out': {'limit': 70.0,  'dir': 'greater', 'msg': "left arm is stretched all the way out", 'sys_name': "left shoulder roll", 'buffer_warn': 15.0, 'buffer_caut': 25.0}, 
     'l_arm.elbow.pitch':       {'limit': -128.0,'dir': 'less', 'msg': "left elbow is tucked all the way in", 'sys_name': "left elbow pitch", 'buffer_warn': 8.0, 'buffer_caut': 15.0}, 
 }
@@ -46,6 +46,8 @@ class SafetyMonitor:
         self.robot = robot_interface
         self.speak_callback = speak_callback
         self.running = False
+        
+        self.warnings_enabled = True
         
         self.highest_threat_level = 0
         self.status_messages = []
@@ -128,13 +130,13 @@ class SafetyMonitor:
             self.highest_threat_level = highest
             self.status_messages = messages
 
-            # 3. TRIGGER AUDIO (Positional limits take priority)
-            if highest >= 2:
-                self._trigger_warning(messages[0][1], highest, warning_type="position", joint_key=messages[0][3])
-            elif speed_warning_triggered:
-                self._trigger_warning(fastest_joint_name, level=2, warning_type="speed")
+            if self.warnings_enabled: 
+                if highest >= 2:
+                    self._trigger_warning(messages[0][1], highest, warning_type="position", joint_key=messages[0][3])
+                elif speed_warning_triggered:
+                    self._trigger_warning(fastest_joint_name, level=2, warning_type="speed")
 
-            time.sleep(0.1) 
+            time.sleep(0.1)
 
     def _trigger_warning(self, msg, level, warning_type="position", joint_key=None):
         current_time = time.time()

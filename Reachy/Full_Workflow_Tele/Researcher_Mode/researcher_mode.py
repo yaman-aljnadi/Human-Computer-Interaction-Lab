@@ -16,10 +16,10 @@ TASK_DURATIONS = {
 
 # Re-use your exact safety limits
 LIMITS_CONFIG = {
-    'r_arm.shoulder.pitch': {'limit': -52.0, 'dir': 'less', 'buffer_warn': 10.0}, 
+    'r_arm.shoulder.pitch': {'limit': -62.0, 'dir': 'less', 'buffer_warn': 10.0}, 
     'r_arm.shoulder.roll_out': {'limit': -70.0, 'dir': 'less', 'buffer_warn': 15.0}, 
     'r_arm.elbow.pitch': {'limit': -125.0,'dir': 'less', 'buffer_warn': 8.0}, 
-    'l_arm.shoulder.pitch': {'limit': -52.0, 'dir': 'less', 'buffer_warn': 10.0}, 
+    'l_arm.shoulder.pitch': {'limit': -62.0, 'dir': 'less', 'buffer_warn': 10.0}, 
     'l_arm.shoulder.roll_out': {'limit': 70.0, 'dir': 'greater', 'buffer_warn': 15.0}, 
     'l_arm.elbow.pitch': {'limit': -128.0,'dir': 'less', 'buffer_warn': 8.0}, 
 }
@@ -114,17 +114,17 @@ class ResearcherMode:
                 if self.current_task == 1:
                     if elapsed >= 150 and not self.milestones["t1_230"]:
                         self.milestones["t1_230"] = True
-                        self.play_sound(self.sound_timer)
+                        # Removed intermediate beep here
                         print("\n[Timer] Task 1: 2:30 milestone reached!")
                     
                     elif elapsed >= 300 and not self.milestones["t1_500"]:
                         self.milestones["t1_500"] = True
-                        self.play_sound(self.sound_timer)
+                        # Removed intermediate beep here
                         print("\n[Timer] Task 1: 5:00 milestone reached!")
                     
                     elif elapsed >= 420 and not self.milestones["t1_700"]:
                         self.milestones["t1_700"] = True
-                        self.play_sound(self.sound_timer)
+                        self.play_sound(self.sound_timer) # Kept completion beep
                         print("\n[Timer] Task 1: 7:00 completion reached!")
                         self.task_active = False
                         self.current_task = 0
@@ -132,12 +132,12 @@ class ResearcherMode:
                 elif self.current_task == 2:
                     if elapsed >= 60 and not self.milestones["t2_100"]:
                         self.milestones["t2_100"] = True
-                        self.play_sound(self.sound_timer)
+                        # Removed intermediate beep here
                         print("\n[Timer] Task 2: 1:00 milestone reached!")
                     
                     elif elapsed >= 120 and not self.milestones["t2_200"]:
                         self.milestones["t2_200"] = True
-                        self.play_sound(self.sound_timer)
+                        self.play_sound(self.sound_timer) # Kept completion beep
                         print("\n[Timer] Task 2: 2:00 completion reached!")
                         self.task_active = False
                         self.current_task = 0
@@ -147,7 +147,7 @@ class ResearcherMode:
                     target_duration = TASK_DURATIONS[self.current_task]
                     if elapsed >= target_duration:
                         print(f"\n[Experiment] TIME'S UP for Task {self.current_task}!")
-                        self.play_sound(self.sound_timer)
+                        self.play_sound(self.sound_timer) # Kept completion beep
                         self.task_active = False
                         self.current_task = 0
                         self.stop_metronome()

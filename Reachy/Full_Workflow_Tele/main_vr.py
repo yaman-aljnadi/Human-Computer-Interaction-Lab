@@ -109,13 +109,12 @@ class ReachyControllerVR:
             print(f"Realtime loop ended: {e}")
 
     def get_camera_data(self):
-        """Callback for the brain to grab the VR view AND the CV report."""
+        """Callback for the brain to grab the head camera for the LLM only."""
         head_frame = self.robot.get_frame()
-        
-        report = f"Sorting Status: {self.vision_tracker.latest_status}\n"
-        report += f"Block Counts: {self.vision_tracker.block_counts}\n"
-        
-        return head_frame, report
+
+        # Keep torso vision tracking available for the researcher debug window,
+        # but do not leak its sorting/block heuristics into the LLM context.
+        return head_frame, None
 
     def start(self):
         self.safety_monitor.start()
@@ -169,7 +168,7 @@ class ReachyControllerVR:
 
     def display_loop(self):
         print("Display Active. Press 'q' to quit.")
-        print("WoZ Controls: 's'=Start/Unmute, '1-4'=Tasks, 'm'=Mute")
+        print("WoZ Controls: 's'=Start/Unmute, '1-4'=Tasks, 'm'=Mute, 'w'=Toggle Warnings")
         
         while self.running:
             self.check_vr_button_state() 
@@ -212,6 +211,12 @@ class ReachyControllerVR:
                 self.mic_muted = not self.mic_muted
                 status = "MUTED" if self.mic_muted else "UNMUTED"
                 print(f"\n[WoZ] 'M' Pressed: Microphone is now {status}")
+
+            elif key == ord('w'):
+                self.safety_monitor.warnings_enabled = not self.safety_monitor.warnings_enabled
+                status = "ON" if self.safety_monitor.warnings_enabled else "OFF"
+                print(f"\n[WoZ] 'W' Pressed: Safety Warnings are now {status}")
+
             elif key == ord('1') and self.experiment_started:
                 self.start_task(1)
             elif key == ord('2') and self.experiment_started:

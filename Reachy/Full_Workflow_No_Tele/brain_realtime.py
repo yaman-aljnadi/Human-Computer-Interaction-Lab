@@ -31,14 +31,34 @@ class RealtimeBrainNonTeleop:
         # Buffer to hold incoming audio chunks from OpenAI
         self.audio_response_buffer = bytearray()
         
-        self.system_prompt = (
-            "You are Reachy, an enthusiastic, highly charismatic humanoid robot presenting to a large live audience. "
-            "Keep your energy high, be incredibly cheerful, and feel free to throw in some lighthearted, family-friendly jokes or witty remarks. "
-            "Your answers should be engaging but brief enough to keep the crowd entertained without rambling. "
-            "If the user shows you something or asks you for visuals, ALWAYS use the 'see_environment' tool. "
-            "If the audience asks you to dance, show a move, or perform, you MUST immediately call the 'perform_dance' tool. NEVER describe yourself dancing in text. "
-            "Never act like a boring AI—you are a star performer on stage!"
-        )
+        # --- UPDATE: Dynamic System Prompt based on Condition ---
+        if config.EXPERIMENT_CONDITION == "crowd":
+            self.system_prompt = (
+                "You are Reachy, an enthusiastic, highly charismatic humanoid robot presenting to a large live audience. "
+                "Keep your energy high, be incredibly cheerful, and feel free to throw in some lighthearted, family-friendly jokes or witty remarks. "
+                "Your answers should be engaging but brief enough to keep the crowd entertained without rambling. "
+                "If the user shows you something or asks you for visuals, ALWAYS use the 'see_environment' tool. "
+                "If the audience asks you to dance, show a move, or perform, you MUST immediately call the 'perform_dance' tool. NEVER describe yourself dancing in text. "
+                "Never act like a boring AI—you are a star performer on stage!"
+            )
+        else:
+            # Load the corresponding text file to give Reachy context about the tasks
+            prompt_file = f"prompts/{config.EXPERIMENT_CONDITION}_prompt.txt"
+            try:
+                with open(prompt_file, "r") as file:
+                    base_prompt = file.read()
+            except FileNotFoundError:
+                print(f"[Warning] Could not find {prompt_file}. Falling back to default.")
+                base_prompt = "You are Reachy."
+            
+            # Add the specific instruction for the Pre-Task face-to-face phase
+            self.system_prompt = (
+                f"{base_prompt}\n\n"
+                "CRITICAL SYSTEM NOTE: You are currently in the PRE-TASK PHASE. "
+                "The user is standing in front of you and is NOT wearing the VR headset yet. "
+                "Do NOT start any tasks. Just chat with them socially and get to know them. "
+                "If they ask about the tasks, you can use the knowledge above to answer briefly, but otherwise keep it casual."
+            )
 
     async def _audio_input_task(self, connection):
         """Continuously streams local microphone to OpenAI."""
@@ -130,6 +150,24 @@ class RealtimeBrainNonTeleop:
                 ],
                 "tool_choice": "auto"
             })
+
+            intro_text = ""
+            if config.EXPERIMENT_CONDITION == "embodied":
+                intro_text = "Briefly introduce yourself to the user standing in front of you. Tell them you are Reachy, their AI partner for today, and you're excited to work with them. Ask them how they are doing."
+            elif config.EXPERIMENT_CONDITION == "copilot":
+                intro_text = "Briefly introduce yourself to the user standing in front of you. Tell them you are the AI Copilot who will be assisting them during the VR tasks today. Ask them how they are doing."
+            elif config.EXPERIMENT_CONDITION == "crowd":
+                intro_text = "Give a very quick, energetic welcome to the crowd!"
+            
+            if intro_text:
+                await conn.conversation.item.create(
+                    item={
+                        "type": "message",
+                        "role": "user",
+                        "content": [{"type": "input_text", "text": f"SYSTEM PROMPT (Do not say this out loud, just act on it): {intro_text}"}]
+                    }
+                )
+                await conn.response.create()
 
             asyncio.create_task(self._audio_input_task(conn))
 
