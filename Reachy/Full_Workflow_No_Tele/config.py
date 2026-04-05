@@ -9,7 +9,7 @@ REACHY_IP = '192.168.50.242'
 
 # --- NEW: Experiment Condition ---
 # Options: "embodied", "copilot", or "crowd"
-EXPERIMENT_CONDITION = "copilot"
+EXPERIMENT_CONDITION = "embodied"
 
 # Models
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
