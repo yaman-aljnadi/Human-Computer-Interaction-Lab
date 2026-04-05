@@ -9,7 +9,7 @@ REACHY_IP = '192.168.50.242'
 
 # --- NEW: Experiment Condition ---
 # Options: "embodied", "copilot", or "crowd"
-EXPERIMENT_CONDITION = "embodied"
+EXPERIMENT_CONDITION = "copilot"
 
 # Models
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
@@ -22,7 +22,8 @@ WHISPER_MODEL_TYPE = "base.en"
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") 
 TTS_MODEL = "gpt-4o-mini-tts"      
 
-OPENAI_REALTIME_MODEL = "gpt-realtime-mini-2025-12-15"
+# OPENAI_REALTIME_MODEL = "gpt-realtime-mini-2025-12-15"
+OPENAI_REALTIME_MODEL = "gpt-realtime-2025-08-28"
 
 LISTEN_OVERLAP_TIME = 1.2
 SPEECH_PAUSE_THRESHOLD = 2.5

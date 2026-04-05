@@ -54,10 +54,11 @@ class RealtimeBrainNonTeleop:
             # Add the specific instruction for the Pre-Task face-to-face phase
             self.system_prompt = (
                 f"{base_prompt}\n\n"
-                "CRITICAL SYSTEM NOTE: You are currently in the PRE-TASK PHASE. "
-                "The user is standing in front of you and is NOT wearing the VR headset yet. "
-                "Do NOT start any tasks. Just chat with them socially and get to know them. "
-                "If they ask about the tasks, you can use the knowledge above to answer briefly, but otherwise keep it casual."
+                "CRITICAL SYSTEM NOTE: You are in the PRE-TASK SOCIAL PHASE. "
+                "The user is NOT wearing a VR headset. You cannot start tasks yet. "
+                "If the user asks to start, say: 'I can't start the tasks yet! The researcher "
+                "needs to give you a quick briefing first, and then you'll need to put on the VR headset.' "
+                "DO NOT offer to begin. Just be social and wait for the researcher's signal."
             )
 
     async def _audio_input_task(self, connection):
@@ -153,9 +154,9 @@ class RealtimeBrainNonTeleop:
 
             intro_text = ""
             if config.EXPERIMENT_CONDITION == "embodied":
-                intro_text = "Briefly introduce yourself to the user standing in front of you. Tell them you are Reachy, their AI partner for today, and you're excited to work with them. Ask them how they are doing."
+                intro_text = "Briefly introduce yourself to the user standing in front of you. Tell them you are Reachy, their robot partner for today, and you're excited to work with them. Ask them how they are doing."
             elif config.EXPERIMENT_CONDITION == "copilot":
-                intro_text = "Briefly introduce yourself to the user standing in front of you. Tell them you are the AI Copilot who will be assisting them during the VR tasks today. Ask them how they are doing."
+                intro_text = "Briefly introduce yourself to the user standing in front of you. Tell them you are the Copilot who will be assisting them during the VR tasks today. Ask them how they are doing."
             elif config.EXPERIMENT_CONDITION == "crowd":
                 intro_text = "Give a very quick, energetic welcome to the crowd!"
             
@@ -168,6 +169,9 @@ class RealtimeBrainNonTeleop:
                     }
                 )
                 await conn.response.create()
+
+            if config.EXPERIMENT_CONDITION in ["embodied", "copilot"]:
+                asyncio.create_task(self._conversation_timer(conn))
 
             asyncio.create_task(self._audio_input_task(conn))
 
@@ -256,6 +260,37 @@ class RealtimeBrainNonTeleop:
                         # Trigger the callback to main.py to start the music!
                         if hasattr(self, 'on_dance_command_callback') and self.on_dance_command_callback:
                             self.on_dance_command_callback()
+
+    async def _conversation_timer(self, connection):
+            """Wraps up the conversation after 2 minutes."""
+            await asyncio.sleep(120) # 2 minute conversation limit
+            
+            print("[Brain] 2-minute limit reached. Wrapping up conversation...")
+            
+            if self.get_mute_state_callback:
+                self.get_mute_state_callback(force_mute=True)
+
+            wrap_up_msg = (
+                "SYSTEM NOTE: The 2-minute introduction is over. Politely tell the user it was "
+                "great meeting them, but the researcher needs to brief them now before we can "
+                "move on to the VR tasks. End the conversation warmly."
+            )
+            
+            await connection.conversation.item.create(
+                item={
+                    "type": "message",
+                    "role": "user",
+                    "content": [{"type": "input_text", "text": wrap_up_msg}]
+                }
+            )
+            await connection.response.create()
+            
+            # Give the robot time to speak the wrap-up before muting
+            await asyncio.sleep(10) 
+            print("[Brain] Intro complete. Muting microphone for briefing.")
+            # Trigger the mute via the callback or a direct flag
+            if hasattr(self, 'on_mute_request'): # Optional: add a callback to main.py
+                self.get_mute_state_callback(force_mute=True)
 
     def stop(self):
         self.is_connected = False

@@ -13,6 +13,7 @@ from reachy_interface import ReachyRobot
 from tracker import HeadTracker
 from brain_realtime import RealtimeBrainNonTeleop 
 
+import pyaudio
 
 class ReachyController:
     def __init__(self):
@@ -24,7 +25,10 @@ class ReachyController:
         self.is_muted = False
         
         self.tracker = HeadTracker(self.robot)
-        self.tracking_active = False 
+        self.tracking_active = True 
+
+        self.playback_lock = threading.Lock() 
+        self.is_briefing_time = False
 
         # Init the new async loop and brain
         self.brain_loop = asyncio.new_event_loop()
@@ -41,9 +45,15 @@ class ReachyController:
         time.sleep(0.5) # Let servos settle before taking the picture
         return self.robot.get_frame()
 
-    def check_if_muted(self):
+    def check_if_muted(self, force_mute=None):
         """Callback for the brain to know if it should ignore the mic."""
-        return self.is_muted
+        if force_mute:
+            self.is_briefing_time = True
+            self.is_muted = True
+            print(">>> Intro Finished: Mic Permanently Locked for Briefing.")
+            
+        # Return True if temporarily muted OR permanently locked
+        return self.is_muted or self.is_briefing_time
 
     def play_generated_audio(self, filepath):
         """
@@ -55,40 +65,46 @@ class ReachyController:
 
     def _playback_routine(self, filepath):
         """Handles the precise timing and muting for Reachy's speech."""
-        self.body.start_speaking_behavior()
         
-        # 1. Hard mute the microphone
-        was_muted = self.is_muted
-        self.is_muted = True 
-        
-        # 2. Calculate EXACT duration of the .wav file
-        duration = 5.0 # Fallback in case of read error
-        try:
-            import wave
-            import contextlib
-            with contextlib.closing(wave.open(filepath, 'r')) as f:
-                frames = f.getnframes()
-                rate = f.getframerate()
-                duration = frames / float(rate)
-            print(f"[Main] Calculated audio duration: {duration:.2f}s")
-        except Exception as e:
-            print(f"[Main] Could not read duration: {e}")
+        with self.playback_lock:
+            
+            if not self.tracking_active:
+                self.body.start_speaking_behavior()
+            
+            was_muted = self.is_muted
+            self.is_muted = True 
+            
+            duration = 5.0 
+            try:
+                import wave
+                import contextlib
+                with contextlib.closing(wave.open(filepath, 'r')) as f:
+                    frames = f.getnframes()
+                    rate = f.getframerate()
+                    duration = frames / float(rate)
+                print(f"[Main] Calculated audio duration: {duration:.2f}s")
+            except Exception as e:
+                print(f"[Main] Could not read duration: {e}")
 
-        # 3. Play via SDK, but tell reachy_interface NOT to wait. 
-        # We handle the waiting locally so we can perfectly control the mic.
-        self.robot.play_audio(filepath, wait=False)
-        
-        # 4. Sleep for the duration of the audio PLUS a 1.0 second safety buffer.
-        # This gives the SDK time to upload the file, and ensures the mic stays 
-        # dead until the room echoes settle.
-        time.sleep(duration + 1.0)
-        
-        # 5. Restore microphone state
-        self.is_muted = was_muted
-        self.body.stop_speaking_behavior()
-        
-        if os.path.exists(filepath):
-            os.remove(filepath)
+            # --- CHANGED: Route audio based on experiment condition ---
+            if config.EXPERIMENT_CONDITION == "copilot":
+                print("[Main] Copilot Mode: Playing audio locally via computer.")
+                # Run locally in a thread so it doesn't block our sleep timer
+                threading.Thread(target=self.play_audio_locally, args=(filepath,)).start()
+            else:
+                print("[Main] Embodied Mode: Playing audio on Reachy.")
+                self.robot.play_audio(filepath, wait=False)
+            
+            time.sleep(duration + 1.0)
+            
+            if not self.is_briefing_time:
+                self.is_muted = was_muted
+            
+            if not self.tracking_active:
+                self.body.stop_speaking_behavior()
+            
+            if os.path.exists(filepath):
+                os.remove(filepath)
 
     def start_realtime_thread(self):
         """Runs the OpenAI WebSocket connection in the background."""
@@ -98,6 +114,27 @@ class ReachyController:
         except Exception as e:
             print(f"Realtime loop ended: {e}")
 
+    def play_audio_locally(self, filepath):
+        """Plays a wav file through the computer's default speakers."""
+        try:
+            wf = wave.open(filepath, 'rb')
+            p = pyaudio.PyAudio()
+            stream = p.open(format=p.get_format_from_width(wf.getsampwidth()),
+                            channels=wf.getnchannels(),
+                            rate=wf.getframerate(),
+                            output=True)
+            
+            data = wf.readframes(1024)
+            while len(data) > 0:
+                stream.write(data)
+                data = wf.readframes(1024)
+                
+            stream.stop_stream()
+            stream.close()
+            p.terminate()
+        except Exception as e:
+            print(f"[Main] Local audio playback failed: {e}")
+
     def trigger_dance(self):
         """Called automatically by the Brain when the LLM decides to dance."""
         # Use a thread so the WebSocket connection doesn't freeze!
@@ -105,12 +142,10 @@ class ReachyController:
 
     def start(self):
         # Wave animation
-        threading.Thread(target=self.start_realtime_thread, daemon=True).start()
-        
         wave_thread = threading.Thread(target=self.body.perform_wave)
         wave_thread.start()
 
-        # Start the Brain's listening/WebSocket loop
+        # 2. Start the Brain's listening/WebSocket loop (Keep ONLY this one)
         threading.Thread(target=self.start_realtime_thread, daemon=True).start()
 
         self.display_loop()

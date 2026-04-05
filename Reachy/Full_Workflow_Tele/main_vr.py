@@ -261,7 +261,10 @@ class ReachyControllerVR:
             )
 
         elif task_num == 4:
-            pass
+            asyncio.run_coroutine_threadsafe(
+                self.brain.inject_proactive_thought("We are starting Task 4. Deliver your exact Task 4 Start script now.", uninterruptible=True), 
+                self.brain_loop
+            )
 
     def stop_timers(self):
             """Callback to disable active task timers if the user finishes early."""
