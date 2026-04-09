@@ -99,16 +99,19 @@ class RealtimeBrainNonTeleop:
     def _save_buffer_to_wav(self, filename=config.TEMP_OUTPUT_AUDIO):
         """Wraps the accumulated PCM16 bytes into a proper WAV file."""
         if len(self.audio_response_buffer) == 0:
-            return False
+            return None
             
-        with wave.open(filename, 'wb') as wav_file:
+        # Create a unique filename using a timestamp to prevent race conditions
+        unique_filename = f"{filename.replace('.wav', '')}_{int(time.time() * 1000)}.wav"
+            
+        with wave.open(unique_filename, 'wb') as wav_file:
             wav_file.setnchannels(self.channels)
             wav_file.setsampwidth(self.pyaudio_instance.get_sample_size(self.audio_format))
             wav_file.setframerate(self.openai_rate)
             wav_file.writeframes(self.audio_response_buffer)
         
         self.audio_response_buffer.clear() 
-        return True
+        return unique_filename
 
     async def start_session(self):
         self.is_connected = True
@@ -200,9 +203,9 @@ class RealtimeBrainNonTeleop:
                 elif event.type in ("response.audio.done", "response.output_audio.done", "response.done"):
                     # Model finished talking. Save and play!
                     if len(self.audio_response_buffer) > 0:
-                        success = self._save_buffer_to_wav(config.TEMP_OUTPUT_AUDIO)
-                        if success:
-                            self.on_speech_ready_callback(config.TEMP_OUTPUT_AUDIO)
+                        saved_filepath = self._save_buffer_to_wav(config.TEMP_OUTPUT_AUDIO)
+                        if saved_filepath:
+                            self.on_speech_ready_callback(saved_filepath)
                             
                 # Catch errors so they don't fail silently
                 elif event.type == "error":

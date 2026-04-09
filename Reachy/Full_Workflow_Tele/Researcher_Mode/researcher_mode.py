@@ -32,7 +32,7 @@ class ResearcherMode:
         base_dir = os.path.dirname(__file__)
         try:
             self.sound_timer = pygame.mixer.Sound(os.path.join(base_dir, "Timer.mp3"))
-            self.sound_warning = pygame.mixer.Sound(os.path.join(base_dir, "Warning.mp3"))
+            self.sound_warning = pygame.mixer.Sound(os.path.join(base_dir, "car-chime-warning.mp3"))
             self.metronome_path = os.path.join(base_dir, "60_Metronome.mp3")
             print("[Audio] Loaded Timer.mp3, Warning.mp3, and 60_Metronome.mp3 successfully.")
         except Exception as e:

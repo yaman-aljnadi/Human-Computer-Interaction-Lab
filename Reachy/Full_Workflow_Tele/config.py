@@ -15,7 +15,7 @@ WHISPER_MODEL_TYPE = "base.en"
 
 # embodied
 # copilot
-EXPERIMENT_CONDITION = "embodied"
+EXPERIMENT_CONDITION = "copilot"
 
 # OPENAI TTS SETTINGS
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") 
