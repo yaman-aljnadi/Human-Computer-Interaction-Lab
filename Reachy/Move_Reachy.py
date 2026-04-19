@@ -4,7 +4,7 @@ import numpy as np
 
 import time
 
-reachy = ReachySDK(host='192.168.50.213')
+reachy = ReachySDK(host='192.168.50.242')
 
 reachy.head.turn_on()
 reachy.r_arm.turn_on()
