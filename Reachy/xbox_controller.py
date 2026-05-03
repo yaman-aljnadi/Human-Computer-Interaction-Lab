@@ -4,10 +4,13 @@ from evdev import InputDevice, categorize, ecodes, list_devices
 from reachy2_sdk import ReachySDK
 
 # --- Configuration ---
-REACHY_IP = '127.0.0.1' # Running locally on Reachy
+REACHY_IP = 'localhost' # Running locally on Reachy
 MAX_LINEAR_SPEED = 0.5  # m/s
 MAX_ANGULAR_SPEED = 30.0 # deg/s
-DEADZONE = 5000 # Ignore tiny stick movements (stick drift)
+
+# Controller Calibration
+CENTER = 32768
+DEADZONE = 5000 # Ignores the sensitive flutter you saw around 31k-33k
 
 # --- Global Speed Variables ---
 current_vx = 0.0
@@ -22,9 +25,8 @@ print("Connected! Mobile base ready.")
 
 # --- 2. Find the Xbox Controller ---
 def get_controller():
-    devices = [InputDevice(path) for path in evdev.list_devices()]
+    devices = [InputDevice(path) for path in list_devices()]
     for device in devices:
-        # Look for typical Xbox controller names
         if "Xbox" in device.name or "Wireless Controller" in device.name:
             print(f"Found controller: {device.name}")
             return device
@@ -36,12 +38,12 @@ if not gamepad:
     exit()
 
 # --- 3. Continuous Speed Command Thread ---
-# This fulfills the requirement to send commands every 100-150ms 
 def send_speed_loop():
     while True:
+        # Command holonomic velocity directly in the robot frame
         reachy.mobile_base.set_goal_speed(vx=current_vx, vy=current_vy, vtheta=current_vtheta)
         reachy.mobile_base.send_speed_command()
-        time.sleep(0.1) # Send every 100ms
+        time.sleep(0.1) # Send every 100ms to keep the 200ms safety window active
 
 # Start the background thread
 threading.Thread(target=send_speed_loop, daemon=True).start()
@@ -49,33 +51,48 @@ threading.Thread(target=send_speed_loop, daemon=True).start()
 # --- 4. Main Event Loop (Reading Sticks) ---
 print("Listening for input... Press Ctrl+C to stop.")
 
-def map_axis(value, max_speed):
-    # Xbox axes go from -32768 to 32767
-    if abs(value) < DEADZONE:
+def map_axis(raw_value, max_speed):
+    # Shift the value so the resting point is mathematically 0
+    centered = raw_value - CENTER
+    
+    # Apply the deadzone to ignore stick drift
+    if abs(centered) < DEADZONE:
         return 0.0
-    # Normalize to -1.0 to 1.0, then multiply by max speed
-    normalized = value / 32768.0
+        
+    # Convert to a percentage (-1.0 to 1.0)
+    normalized = centered / 32768.0
+    
     return normalized * max_speed
 
 try:
     for event in gamepad.read_loop():
         if event.type == ecodes.EV_ABS:
-            # Left Stick Y-Axis (Forward/Backward)
+            
+            # --- LEFT STICK (Movement) ---
+            
+            # Y-Axis (Forward/Backward)
             if event.code == ecodes.ABS_Y:
-                # Invert so pushing up (negative Y) moves forward (positive X)
-                current_vx = map_axis(-event.value, MAX_LINEAR_SPEED)
+                # '0' is UP. map_axis gives negative for UP. 
+                # We want positive vx for forward, so we invert it.
+                current_vx = -map_axis(event.value, MAX_LINEAR_SPEED)
             
-            # Left Stick X-Axis (Left/Right Strafe)
+            # X-Axis (Left/Right Strafe)
             elif event.code == ecodes.ABS_X:
-                # Left is positive Y in Reachy's frame, so invert joystick X
-                current_vy = map_axis(-event.value, MAX_LINEAR_SPEED)
+                # '0' is LEFT. map_axis gives negative for LEFT.
+                # Positive vy is left, so we invert it.
+                current_vy = -map_axis(event.value, MAX_LINEAR_SPEED)
             
-            # Right Stick X-Axis (Rotation)
-            elif event.code == ecodes.ABS_RX:
-                # Left is positive Theta, so invert joystick X
-                current_vtheta = map_axis(-event.value, MAX_ANGULAR_SPEED)
+            # --- RIGHT STICK (Rotation) ---
+            
+            # X-Axis (Turning)
+            # Depending on the Bluetooth driver, Right Stick X can show up as ABS_RX or ABS_Z.
+            # We map both just to be absolutely certain it catches your input.
+            elif event.code in (ecodes.ABS_RX, ecodes.ABS_Z):
+                # '0' is LEFT. map_axis gives negative for LEFT.
+                # Positive vtheta is counterclockwise (left turn), so we invert it.
+                current_vtheta = -map_axis(event.value, MAX_ANGULAR_SPEED)
 
 except KeyboardInterrupt:
-    print("Stopping...")
+    print("\nStopping...")
     reachy.mobile_base.set_goal_speed(vx=0.0, vy=0.0, vtheta=0.0)
     reachy.mobile_base.send_speed_command()
