@@ -1,0 +1,12 @@
+Local API version (1.0.21) is different from the robot's API version (1.0.19).
+Some features may not work properly.
+Please update the reachy2_core image on the robot to ensure compatibility, or downgrade your local reachy2_sdk package.
+This Reachy is in REAL mode :
+⚠️  Be careful, you're controlling the PHYSICAL Reachy.
+
+Connecting to Reachy...
+Connected! Mobile base ready.
+Found controller: Xbox Elite Wireless Controller
+Listening for input... Press Ctrl+C to stop.
+
+Stopping...
