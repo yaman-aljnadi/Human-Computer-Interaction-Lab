@@ -1,0 +1,7 @@
+Arms hitting each other 
+
+{ 'r_arm.shoulder.pitch': -17.2, 'r_arm.shoulder.roll': 16.2, 'r_arm.elbow.yaw': -3.7, 'r_arm.elbow.pitch': -69.3, 'l_arm.shoulder.pitch': -20.9, 'l_arm.shoulder.roll': -17.5, 'l_arm.elbow.yaw': -3.5, 'l_arm.elbow.pitch': -71.0 }
+{ 'r_arm.shoulder.pitch': -33.5, 'r_arm.shoulder.roll': 5.9, 'r_arm.elbow.yaw': -17.8, 'r_arm.elbow.pitch': -49.6, 'l_arm.shoulder.pitch': -45.7, 'l_arm.shoulder.roll': -29.7, 'l_arm.elbow.yaw': 9.1, 'l_arm.elbow.pitch': -40.5 }
+
+Hitting the Base 
+{ 'r_arm.shoulder.pitch': 1.8, 'r_arm.shoulder.roll': 21.4, 'r_arm.elbow.yaw': -33.6, 'r_arm.elbow.pitch': -1.2, 'l_arm.shoulder.pitch': -6.1, 'l_arm.shoulder.roll': -20.3, 'l_arm.elbow.yaw': 6.3, 'l_arm.elbow.pitch': -3.2 }
