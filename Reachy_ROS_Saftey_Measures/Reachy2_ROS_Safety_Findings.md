@@ -1,8 +1,8 @@
 # Reachy 2 arm-safety findings
 
-Date: October 12, 2026  
 Robot: `bedrock@r2-0004`  
 Core image: `pollenrobotics/reachy2_core:1.7.5.9_release`  
+
 Purpose: record where Unity teleoperation actually commands the arms, so the self-collision check can be added on the robot.
 
 This file is the working log. The shorter write-up for review is `Reachy2_ROS_Safety_Progress_Report.md` in this same folder.
